@@ -111,9 +111,13 @@ last 30 days. Older entries are deleted.
 
 ### 4.3 Silence alert
 
-If no day-close message has arrived from a sender for 48 hours, the buddy gets a
-notification ("No sign of life from Alex since Monday"). This covers cases the sender
-phone cannot report itself, such as the app being uninstalled or force-stopped.
+The daily day-close message (3.4) is an invisible sign of life: on a day without a hit
+the buddy's phone receives it but shows nothing. A well-behaved sender therefore causes
+no notifications at all.
+
+Only if no day-close message has arrived from a sender for **7 days** does the buddy
+get a notification ("No sign of life from Alex since Monday"). This covers cases the
+sender phone cannot report itself, such as the app being uninstalled or force-stopped.
 
 ## 5. Pairing
 
@@ -228,7 +232,9 @@ partner, the app marks that pairing as "unreachable" and suggests pairing again.
 ### 8.1 Stack
 
 - Kotlin, Jetpack Compose, Material 3, single Gradle module `app`.
-- Minimum Android 8.0 (API 26), target the current API level.
+- Minimum and target version: Android 16 (API 36). Older versions are not supported,
+  which keeps the code free of compatibility branches. This applies to the buddy's
+  phone as well.
 - Room for local data, WorkManager for the outgoing message queue, exact alarms for the
   midnight reset.
 - Firebase Cloud Messaging for receiving messages. Requires Google Play services.
@@ -364,15 +370,7 @@ Run from the repository root, with the Firebase CLI logged in to the project.
 
 ## 12. Open points
 
-Proposed defaults, to be confirmed or changed:
-
-1. **Zero-hit days**: no summary notification (4.1). Alternative: a positive "stayed
-   within all limits" notification.
-2. **Silence alert** after 48 hours (4.3): keep, change the threshold, or drop.
-3. **What a buddy knows**: only events (hits, weakenings, summaries). The buddy does
-   not see the sender's full list of limits or live usage.
-4. **Minimum Android version**: 8.0.
-5. **Interface language**: English only.
+1. **Interface language**: English only (proposed default, not yet confirmed).
 
 ## 13. Decisions taken
 
@@ -388,3 +386,7 @@ Proposed defaults, to be confirmed or changed:
 | Day summary time | Right at midnight, when the day resets. |
 | Use beyond the limit | One instant notification; final total in the summary. |
 | `google-services.json` | Committed to the repository. |
+| Days without a hit | No summary notification. |
+| Silence alert | After 7 days without a sign of life. |
+| What a buddy knows | Only events (hits, weakenings, summaries); not the full list of limits or live usage. |
+| Minimum Android version | Android 16 (API 36), on both phones. |
