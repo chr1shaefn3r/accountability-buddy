@@ -49,3 +49,19 @@ interface LimitsEvents {
 
     suspend fun dayClosed(dayClosed: DayClosed)
 }
+
+/** Tells the owner of this phone about their own limits. */
+fun interface SenderNotifier {
+    fun limitReached(hit: LimitHit)
+}
+
+/** Knows the apps installed on this phone. */
+interface AppCatalog {
+    /** The name of an app as the user knows it. */
+    fun label(app: AppId): String
+
+    /** All apps the user can start, sorted by label. */
+    fun launchableApps(): List<InstalledApp>
+}
+
+data class InstalledApp(val id: AppId, val label: String)
