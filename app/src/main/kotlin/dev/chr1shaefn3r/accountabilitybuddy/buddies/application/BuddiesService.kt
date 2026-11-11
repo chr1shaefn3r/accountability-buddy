@@ -104,7 +104,7 @@ class BuddiesService(ports: BuddiesPorts) {
                 ),
                 keys,
             )
-            send(code.pairingId, BuddyMessage.PairingRequested(myName, address.token), keyPair.publicKey)
+            send(code.pairingId, BuddyMessage.PairingRequested(myName, address.id), keyPair.publicKey)
             PairingRequestResult.REQUESTED
         }
 
@@ -308,7 +308,7 @@ class BuddiesService(ports: BuddiesPorts) {
         val address = addressProvider.current()
         if (address != profile.address) {
             profile.address = address
-            tellEveryone(BuddyMessage.AddressChanged(address.token))
+            tellEveryone(BuddyMessage.AddressChanged(address.id))
         }
         return address
     }

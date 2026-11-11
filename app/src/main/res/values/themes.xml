@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only the window before Compose draws; all visible styling is Material 3 in Compose. -->
+    <style name="Theme.AccountabilityBuddy" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+    <color name="launcher_background">#2E5B7A</color>
+</resources>

@@ -38,6 +38,7 @@ compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview"
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+firebase-installations = { module = "com.google.firebase:firebase-installations" }
 play-code-scanner = { module = "com.google.android.gms:play-services-code-scanner", version.ref = "codeScanner" }
 tink = { module = "com.google.crypto.tink:tink-android", version.ref = "tink" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }

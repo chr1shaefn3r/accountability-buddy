@@ -20,9 +20,9 @@ value class PairingId(val hex: String) {
     }
 }
 
-/** Where push messages for a phone are sent to (its FCM registration token). */
+/** Where push messages for a phone are sent to (its Firebase installation ID). */
 @JvmInline
-value class PushAddress(val token: String)
+value class PushAddress(val id: String)
 
 /** What the other person in a pairing is to the owner of this phone. */
 enum class PartnerRole {

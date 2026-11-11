@@ -61,7 +61,7 @@ class InvitationCode(
                 pairingId = pairingId.hex,
                 publicKey = base64.encodeToString(publicKey),
                 secret = base64.encodeToString(secret),
-                senderAddress = senderAddress.token,
+                senderAddress = senderAddress.id,
                 senderName = senderName,
                 expiresAtEpochSecond = expiresAt.epochSecond,
             )

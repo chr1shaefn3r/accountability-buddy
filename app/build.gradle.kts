@@ -27,6 +27,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     lint {
@@ -71,6 +72,7 @@ dependencies {
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.installations)
     implementation(libs.play.code.scanner)
 
     implementation(libs.tink)
