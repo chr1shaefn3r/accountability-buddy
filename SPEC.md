@@ -240,31 +240,89 @@ partner, the app marks that pairing as "unreachable" and suggests pairing again.
 - Firebase Cloud Messaging for receiving messages. Requires Google Play services.
 - Google Tink for cryptography. ZXing for showing and scanning QR codes.
 - User interface language: English.
+- User interface: see section 9.
 
-### 8.2 Screens
-
-- **Onboarding**: explains the idea, asks for the display name and requests
-  permissions.
-- **My limits** (sender tab): limits with today's usage, add/edit/delete a limit, app
-  picker.
-- **My buddies**: list of buddies, "Add buddy" (QR code), remove buddy.
-- **People I support** (buddy tab): list of senders, "Support someone" (scanner),
-  per-sender notification settings, history, stop supporting.
-- **Settings**: display name, permission status, about.
-
-### 8.3 Permissions
+### 8.2 Permissions
 
 Usage access, notifications, camera (only for scanning), internet, foreground service,
 start on boot, exact alarms, battery-optimisation exemption.
 
-### 8.4 Reliability
+### 8.3 Reliability
 
 Outgoing messages are stored in a local queue and sent when a network is available,
 with retries. Messages are delivered in order per pairing.
 
-## 9. Build and deployment
+## 9. User experience
 
-### 9.1 App
+### 9.1 Paradigm
+
+- **Material Design 3** as shipped with Jetpack Compose, using stock components only.
+  No custom design system, no custom widgets, no custom animations.
+- **Dynamic colour** (Material You): the app takes its colours from the user's
+  wallpaper and follows the system light or dark theme. There is no in-app theme
+  setting.
+- Platform conventions are followed as they are: edge-to-edge layout, predictive back,
+  system font size, system notification settings.
+- The app should feel like a part of Android's own settings: calm, predictable, quick
+  to leave.
+
+### 9.2 Navigation
+
+A bottom navigation bar with two destinations, one per role:
+
+| Destination | Content |
+|---|---|
+| **My limits** | The sender role. |
+| **Supporting** | The buddy role. |
+
+Settings is reached through an icon in the top bar. Everything else opens as a
+full-screen page with a back arrow. Navigation is never more than two levels deep.
+
+### 9.3 Screens
+
+- **Onboarding**: one step per screen: what the app does, display name, then one
+  permission per screen, each with a one-sentence reason before the system dialog
+  appears. Permissions for a role are requested when that role is first used: a user
+  who only supports others is never asked for usage access.
+- **My limits**:
+  - A row at the top shows the buddies ("2 buddies" or "No buddy yet — add one") and
+    opens **My buddies**.
+  - Below, one card per limit: name, app icons, a progress bar, and "45m of 1h".
+    A limit that was hit is shown in the theme's error colour.
+  - A floating action button adds a limit.
+- **Edit limit**: name, duration picker (hours and minutes), and the list of apps.
+  "Add apps" opens the **app picker**: a searchable list with icons and checkboxes.
+- **My buddies**: list of buddies with their status, "Add buddy" (shows the QR code
+  with a countdown), remove buddy.
+- **Supporting**: one card per sender with the latest event ("Hit Social Media
+  yesterday" or "All quiet for 5 days"). "Support someone" opens the scanner.
+- **Sender detail**: the two notification switches (4.1), the history as a list
+  grouped by day, rename, stop supporting.
+- **Settings**: display name, permission status with a "Fix" button for anything
+  missing, about.
+
+### 9.4 Principles
+
+- **Empty states guide.** A screen without content explains in one sentence what it is
+  for and offers the one action that fills it.
+- **No surprises about what buddies learn.** Before a change that weakens the setup
+  (3.5) is saved, a dialog says "Your buddies will be told about this change" and asks
+  for confirmation. The pairing screen states what a buddy will and will not see.
+- **Neutral wording.** Texts state facts ("Social Media: 1h limit reached") and never
+  judge or shame, on either phone.
+- **Problems are visible.** If tracking does not work (missing permission, service
+  stopped), a banner on **My limits** says so and offers the fix.
+- **Notification channels.** Each kind of notification has its own Android channel
+  (limit reached, day summary, changes by the sender, silence alert, tracking
+  service), so users can tune sound and visibility in the system settings.
+- **Accessibility.** Screen-reader labels on every control, touch targets of at least
+  48 dp, layouts that hold up at the largest font size, and information never
+  conveyed by colour alone.
+- **Durations** are always written as "1h 45m".
+
+## 10. Build and deployment
+
+### 10.1 App
 
 ```bash
 git clone https://github.com/chr1shaefn3r/accountability-buddy.git
@@ -284,7 +342,7 @@ cd accountability-buddy
 - Sender and buddy must install a build from the same repository state, because both
   must belong to the same Firebase project.
 
-### 9.2 Server
+### 10.2 Server
 
 ```bash
 firebase deploy --only functions
@@ -292,16 +350,16 @@ firebase deploy --only functions
 
 Run from the repository root, with the Firebase CLI logged in to the project.
 
-### 9.3 One-time setup by the repository owner
+### 10.3 One-time setup by the repository owner
 
 1. Create a Firebase project, switch it to the Blaze plan, and add an Android app with
    the application ID `dev.chr1shaefn3r.accountabilitybuddy`.
 2. Hand over `google-services.json` to be committed.
-3. Deploy the function (9.2) once the code exists.
+3. Deploy the function (10.2) once the code exists.
 
-## 10. Engineering standards
+## 11. Engineering standards
 
-### 10.1 Domain-driven design
+### 11.1 Domain-driven design
 
 - The terms of section 2 are the **ubiquitous language**. Code, tests and user
   interface use exactly these words (`Limit`, `Pairing`, `Buddy`, `Day`, ...).
@@ -318,7 +376,7 @@ Run from the repository root, with the Firebase CLI logged in to the project.
 - Time is always injected through a clock port, never read directly, so that midnight
   and time-zone behaviour is testable.
 
-### 10.2 Test-driven development
+### 11.2 Test-driven development
 
 - Red, green, refactor: a failing test is written before the production code it covers.
 - Domain and application logic is covered by fast JVM unit tests. They are the bulk of
@@ -329,7 +387,7 @@ Run from the repository root, with the Firebase CLI logged in to the project.
 - Tests describe behaviour in the ubiquitous language, not implementation details.
 - A feature is done when its tests pass and `./gradlew check` is green.
 
-### 10.3 Simplicity
+### 11.3 Simplicity
 
 - The fewest components that solve the problem: one Gradle module, one Cloud Function,
   no database on the server, no abstractions without a second use.
@@ -337,7 +395,7 @@ Run from the repository root, with the Firebase CLI logged in to the project.
   by hand in one place.
 - No speculative features. Anything not in this spec is not built.
 
-### 10.4 Third-party dependencies
+### 11.4 Third-party dependencies
 
 - Established, maintained libraries are used instead of own implementations wherever
   they fit: AndroidX, Compose, Room, WorkManager, Firebase, Tink, ZXing.
@@ -346,7 +404,7 @@ Run from the repository root, with the Firebase CLI logged in to the project.
   used for one function.
 - Versions are pinned in a Gradle version catalog (`gradle/libs.versions.toml`).
 
-### 10.5 Further standards
+### 11.5 Further standards
 
 - **Static analysis**: ktlint for formatting and detekt for code smells in the app,
   ESLint and strict TypeScript in the function. Compiler warnings are errors.
@@ -358,7 +416,7 @@ Run from the repository root, with the Firebase CLI logged in to the project.
 - **Privacy in code**: no analytics, no crash reporting, and nothing personal in logs.
 - **Living spec**: a change in behaviour updates this document in the same commit.
 
-## 11. Out of scope for version 1
+## 12. Out of scope for version 1
 
 - Blocking or overlaying apps.
 - iOS, tablets-specific layouts, Wear OS.
@@ -368,11 +426,11 @@ Run from the repository root, with the Firebase CLI logged in to the project.
 - Cloud backup or transfer of pairings to a new phone.
 - Release builds and Play Store publication.
 
-## 12. Open points
+## 13. Open points
 
-1. **Interface language**: English only (proposed default, not yet confirmed).
+None at the moment.
 
-## 13. Decisions taken
+## 14. Decisions taken
 
 | Question | Decision |
 |---|---|
@@ -390,3 +448,5 @@ Run from the repository root, with the Firebase CLI logged in to the project.
 | Silence alert | After 7 days without a sign of life. |
 | What a buddy knows | Only events (hits, weakenings, summaries); not the full list of limits or live usage. |
 | Minimum Android version | Android 16 (API 36), on both phones. |
+| Interface language | English only. |
+| Design language | Material Design 3 with dynamic colour, stock components only. |
