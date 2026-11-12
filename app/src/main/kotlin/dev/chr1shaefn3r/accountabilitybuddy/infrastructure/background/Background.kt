@@ -147,6 +147,31 @@ class TrackingService : Service() {
 }
 
 /**
+ * Brings the limits up to date when the app is not open: closes days that are over and
+ * detects limits that were hit. Started by [WakeUpReceiver].
+ */
+class CheckWorker(
+    context: Context,
+    parameters: WorkerParameters,
+) : CoroutineWorker(context, parameters) {
+    override suspend fun doWork(): Result {
+        (applicationContext as AccountabilityBuddyApp).limits.check()
+        return Result.success()
+    }
+
+    companion object {
+        /** Queues one check. While one is waiting or running, asking again changes nothing. */
+        fun runSoon(context: Context) {
+            val request =
+                OneTimeWorkRequestBuilder<CheckWorker>()
+                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                    .build()
+            WorkManager.getInstance(context).enqueueUniqueWork("check", ExistingWorkPolicy.KEEP, request)
+        }
+    }
+}
+
+/**
  * Wakes the app at moments when it must act without being open: after a reboot, at
  * midnight, and when the clock or time zone changes.
  */
@@ -157,16 +182,10 @@ class WakeUpReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
-        val pending = goAsync()
-        val app = context.applicationContext as AccountabilityBuddyApp
-        app.background.launch {
-            try {
-                app.limits.check()
-            } finally {
-                pending.finish()
-            }
-        }
-        app.wakeUp()
+        // A receiver must be done within seconds, or the system reports the app as not responding.
+        // So the work is handed to a job, which may take as long as it needs, and the receiver returns.
+        CheckWorker.runSoon(context)
+        (context.applicationContext as AccountabilityBuddyApp).wakeUp()
     }
 
     companion object {

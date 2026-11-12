@@ -264,6 +264,10 @@ start on boot, exact alarms, battery-optimisation exemption.
 Outgoing messages are stored in a local queue and sent when a network is available,
 with retries. Messages are delivered in order per pairing.
 
+When the system wakes the app (at midnight, after a reboot, on a clock change), the app
+answers at once and does the work in a background job. The system is never kept waiting
+for a day to be closed.
+
 Nothing on the phone waits for the network. Saving a limit, receiving a message and
 showing a page all carry on while a message is on its way, also when the relay or the
 push service is slow or does not answer. Asking the push service for the phone's address
