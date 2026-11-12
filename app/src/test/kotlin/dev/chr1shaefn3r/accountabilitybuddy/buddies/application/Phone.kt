@@ -19,6 +19,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.Relay
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.SessionKeys
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.crypto.TinkCryptography
 import dev.chr1shaefn3r.accountabilitybuddy.testing.MutableClock
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -31,6 +32,18 @@ class Network {
     private val others = mutableMapOf<PushAddress, suspend (ByteArray) -> Unit>()
     val traffic = mutableListOf<Pair<PushAddress, ByteArray>>()
     var online = true
+
+    /** While set, the relay accepts a message but does not answer until [answer] is called. */
+    var stalled: CompletableDeferred<Unit>? = null
+
+    fun stall() {
+        stalled = CompletableDeferred()
+    }
+
+    fun answer() {
+        stalled?.complete(Unit)
+        stalled = null
+    }
 
     fun register(
         address: PushAddress,
@@ -56,6 +69,7 @@ class Network {
         wire: ByteArray,
     ): Relay.Outcome {
         if (!online) return Relay.Outcome.TRY_LATER
+        stalled?.await()
         val receive = phones[to]?.let { it.buddies::receive } ?: others[to] ?: return Relay.Outcome.ADDRESS_GONE
         traffic += to to wire
         receive(wire)
@@ -93,6 +107,9 @@ class Phone(
             network.register(value, this)
         }
     var pushAvailable = true
+
+    /** While set, the push service does not answer when asked for this phone's address. */
+    var pushStalled: CompletableDeferred<Unit>? = null
     var deliveryRequested = false
 
     val buddies =
@@ -108,6 +125,7 @@ class Phone(
                 notifier = notifier,
                 profile = profile,
                 addressProvider = {
+                    pushStalled?.await()
                     if (pushAvailable) address else throw PushUnavailableException(IOException("no push service"))
                 },
                 crypto = TinkCryptography(),

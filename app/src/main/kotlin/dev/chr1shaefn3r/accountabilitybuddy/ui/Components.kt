@@ -24,9 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -96,9 +97,11 @@ fun AppIcon(
     size: Dp = 40.dp,
 ) {
     val context = LocalContext.current
-    val icon by produceState(loadedIcons[app], app) {
-        if (value != null) return@produceState
-        value =
+    // Remembered per app: when a row comes to show another app, it must not keep the icon of the one before.
+    var icon by remember(app) { mutableStateOf(loadedIcons[app]) }
+    LaunchedEffect(app) {
+        if (icon != null) return@LaunchedEffect
+        icon =
             withContext(Dispatchers.IO) {
                 try {
                     context.packageManager

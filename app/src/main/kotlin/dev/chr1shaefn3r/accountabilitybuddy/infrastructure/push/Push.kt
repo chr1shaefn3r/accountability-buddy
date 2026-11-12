@@ -11,7 +11,9 @@ import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PushUnavailableExcept
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Base64
+import java.util.concurrent.TimeoutException
 
 /**
  * Registers this phone with Firebase Cloud Messaging. Its address is the Firebase
@@ -22,13 +24,22 @@ class FcmAddressProvider : PushAddressProvider {
     @Suppress("TooGenericExceptionCaught")
     override suspend fun current(): PushAddress =
         try {
-            FirebaseMessaging.getInstance().register().await()
-            PushAddress(FirebaseInstallations.getInstance().id.await())
+            withTimeoutOrNull(TIMEOUT_MILLIS) {
+                FirebaseMessaging.getInstance().register().await()
+                PushAddress(FirebaseInstallations.getInstance().id.await())
+            } ?: throw PushUnavailableException(TimeoutException("Firebase did not answer"))
         } catch (e: CancellationException) {
+            throw e
+        } catch (e: PushUnavailableException) {
             throw e
         } catch (e: Exception) {
             throw PushUnavailableException(e)
         }
+
+    private companion object {
+        /** Firebase retries on its own for a long time; nobody waits for a QR code that long. */
+        const val TIMEOUT_MILLIS = 20_000L
+    }
 }
 
 /** Receives sealed messages from Firebase Cloud Messaging. */

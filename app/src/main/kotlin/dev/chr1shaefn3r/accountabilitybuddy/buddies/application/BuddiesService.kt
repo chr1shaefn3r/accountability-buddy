@@ -71,32 +71,40 @@ class BuddiesService(
     private val crypto = ports.crypto
     private val clock = ports.clock
     private val channel = SecureChannel(crypto)
+
+    /**
+     * Guards what this phone knows about its pairings. Never held while waiting for the
+     * network: the push service and the relay may take long or not answer at all, and
+     * nothing else must wait for them.
+     */
     private val mutex = Mutex()
+
+    /** Lets one delivery run at a time, so that no letter is sent twice. */
+    private val deliveryMutex = Mutex()
 
     // ---- Pairing -------------------------------------------------------------------
 
     /** Sender: opens a new invitation, replacing any earlier one, and returns its code. */
-    suspend fun invite(): InvitationCode =
-        mutex.withLock {
-            val address = currentAddress()
+    suspend fun invite(): InvitationCode {
+        val address = addressProvider.current()
+        return mutex.withLock {
+            announceIfChanged(address)
             val invitation = Invitation.create(crypto, clock.instant())
             invitations.replace(invitation)
             invitation.code(address, profile.displayName)
         }
+    }
 
     /** Buddy: answers a scanned invitation, appearing under [myName]. */
     suspend fun requestPairing(
         code: InvitationCode,
         myName: String,
-    ): PairingRequestResult =
-        mutex.withLock {
-            when {
-                invitations.current()?.pairingId == code.pairingId ->
-                    return@withLock PairingRequestResult.OWN_INVITATION
-                pairings.find(code.pairingId) != null -> return@withLock PairingRequestResult.ALREADY_KNOWN
-                !code.isValidAt(clock.instant()) -> return@withLock PairingRequestResult.EXPIRED
-            }
-            val address = currentAddress()
+    ): PairingRequestResult {
+        mutex.withLock { reasonToRefuse(code) }?.let { return it }
+        val address = addressProvider.current()
+        return mutex.withLock {
+            reasonToRefuse(code)?.let { return@withLock it }
+            announceIfChanged(address)
             val keyPair = crypto.newKeyPair()
             val keys = SessionKeys.derive(crypto, keyPair.privateKey, code.publicKey, code.secret(), iAmSender = false)
             pairings.create(
@@ -112,6 +120,15 @@ class BuddiesService(
             )
             send(code.pairingId, BuddyMessage.PairingRequested(myName, address.id), keyPair.publicKey)
             PairingRequestResult.REQUESTED
+        }
+    }
+
+    private suspend fun reasonToRefuse(code: InvitationCode): PairingRequestResult? =
+        when {
+            invitations.current()?.pairingId == code.pairingId -> PairingRequestResult.OWN_INVITATION
+            pairings.find(code.pairingId) != null -> PairingRequestResult.ALREADY_KNOWN
+            !code.isValidAt(clock.instant()) -> PairingRequestResult.EXPIRED
+            else -> null
         }
 
     /** Sender: accepts the buddy who answered the invitation. */
@@ -170,10 +187,10 @@ class BuddiesService(
         }
 
     /** Announces this phone's push address to all partners if it changed. */
-    suspend fun refreshAddress() =
-        mutex.withLock {
-            currentAddress()
-        }
+    suspend fun refreshAddress() {
+        val address = addressProvider.current()
+        mutex.withLock { announceIfChanged(address) }
+    }
 
     suspend fun changeDisplayName(name: String) =
         mutex.withLock {
@@ -187,27 +204,49 @@ class BuddiesService(
      * Returns false if some could not be sent yet and should be retried.
      */
     suspend fun deliver(): Boolean =
-        mutex.withLock {
-            outbox.removeOlderThan(clock.instant() - MAX_LETTER_AGE)
+        deliveryMutex.withLock {
+            val letters =
+                mutex.withLock {
+                    outbox.removeOlderThan(clock.instant() - MAX_LETTER_AGE)
+                    outbox.pending()
+                }
             val waiting = mutableSetOf<PairingId>()
             var allSent = true
-            for (letter in outbox.pending()) {
-                val pairing = pairings.find(letter.pairingId)
+            for (letter in letters) {
+                val pairing = mutex.withLock { pairings.find(letter.pairingId) }
                 if (letter.pairingId in waiting || pairing?.state == PairingState.UNREACHABLE) continue
-                when (relay.send(pairing?.partnerAddress ?: letter.address, letter.wire)) {
-                    Relay.Outcome.DELIVERED -> outbox.remove(letter)
-                    Relay.Outcome.ADDRESS_GONE -> {
-                        waiting += letter.pairingId
-                        if (pairing == null) outbox.remove(letter) else markUnreachable(pairing)
-                    }
-                    Relay.Outcome.TRY_LATER -> {
-                        waiting += letter.pairingId
-                        allSent = false
+                val address = pairing?.partnerAddress ?: letter.address
+                val outcome = relay.send(address, letter.wire)
+                mutex.withLock {
+                    when (outcome) {
+                        Relay.Outcome.DELIVERED -> outbox.remove(letter)
+                        Relay.Outcome.ADDRESS_GONE -> {
+                            waiting += letter.pairingId
+                            addressGone(letter, address)
+                        }
+                        Relay.Outcome.TRY_LATER -> {
+                            waiting += letter.pairingId
+                            allSent = false
+                        }
                     }
                 }
             }
             allSent
         }
+
+    /** The relay no longer knows [address]. The partner may have announced a new one in the meantime. */
+    private suspend fun addressGone(
+        letter: Letter,
+        address: PushAddress,
+    ) {
+        val pairing = pairings.find(letter.pairingId)
+        when {
+            pairing == null -> outbox.remove(letter)
+            pairing.partnerAddress == address && pairing.hasKeys ->
+                pairings.update(pairing.copy(state = PairingState.UNREACHABLE))
+            else -> deliverySchedule.deliverSoon()
+        }
+    }
 
     // ---- Receiving -----------------------------------------------------------------
 
@@ -322,13 +361,11 @@ class BuddiesService(
             history.forgetBefore(now - HISTORY_AGE)
         }
 
-    private suspend fun currentAddress(): PushAddress {
-        val address = addressProvider.current()
-        if (address != profile.address) {
-            profile.address = address
-            tellEveryone(BuddyMessage.AddressChanged(address.id))
-        }
-        return address
+    /** Remembers this phone's push address and tells all partners if it is a new one. */
+    private suspend fun announceIfChanged(address: PushAddress) {
+        if (address == profile.address) return
+        profile.address = address
+        tellEveryone(BuddyMessage.AddressChanged(address.id))
     }
 
     private suspend fun tellEveryone(message: BuddyMessage) {
@@ -346,10 +383,6 @@ class BuddiesService(
         pairings.update(pairing.copy(nextCounter = pairing.nextCounter + 1))
         outbox.add(Letter(id, pairing.partnerAddress, wire, clock.instant()))
         deliverySchedule.deliverSoon()
-    }
-
-    private suspend fun markUnreachable(pairing: Pairing) {
-        if (pairing.hasKeys) pairings.update(pairing.copy(state = PairingState.UNREACHABLE))
     }
 
     private suspend fun forget(id: PairingId) {

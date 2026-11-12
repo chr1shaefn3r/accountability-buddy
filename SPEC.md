@@ -264,6 +264,11 @@ start on boot, exact alarms, battery-optimisation exemption.
 Outgoing messages are stored in a local queue and sent when a network is available,
 with retries. Messages are delivered in order per pairing.
 
+Nothing on the phone waits for the network. Saving a limit, receiving a message and
+showing a page all carry on while a message is on its way, also when the relay or the
+push service is slow or does not answer. Asking the push service for the phone's address
+gives up after 20 seconds.
+
 ## 9. User experience
 
 ### 9.1 Paradigm

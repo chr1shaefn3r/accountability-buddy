@@ -232,6 +232,40 @@ class AppUiTest {
         waitForText("0m of 1h")
     }
 
+    @Test
+    fun `an app of a limit can be swapped for another one`() {
+        val music = AppId("com.example.music")
+        onboard()
+        grantUsageAccess()
+        installLauncherApp(video, "Video Player")
+        installLauncherApp(music, "Music Box")
+        runBlocking { app.limits.save(videoLimit) }
+        launch()
+
+        click("Video")
+        waitForText("Edit limit")
+        waitForText("Video Player")
+        compose.onNodeWithContentDescription("Remove Video Player").performClick()
+        click("Add apps")
+        waitForText("Music Box")
+        click("Music Box")
+        click("Done")
+        waitForText("Apps sharing this time")
+        compose.onNodeWithContentDescription("Remove Music Box").assertIsDisplayed()
+        assertTrue(noText("Video Player"))
+        click("Save")
+
+        waitFor("the limit to be saved with the other app") {
+            runBlocking {
+                app.limitRepository
+                    .all()
+                    .single()
+                    .apps == setOf(music)
+            }
+        }
+        waitForText("0m of 1h")
+    }
+
     private fun installLauncherApp(
         id: AppId,
         label: String,

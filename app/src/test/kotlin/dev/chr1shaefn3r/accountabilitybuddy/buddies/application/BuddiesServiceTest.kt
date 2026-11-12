@@ -7,15 +7,22 @@ import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PartnerRole
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PushAddress
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PushUnavailableException
 import dev.chr1shaefn3r.accountabilitybuddy.testing.MutableClock
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class BuddiesServiceTest {
     private val clock = MutableClock("2026-11-12T10:00:00")
     private val network = Network()
@@ -569,6 +576,105 @@ class BuddiesServiceTest {
             sam.buddies.receive(ByteArray(2125) { 1 })
 
             assertEquals(emptyList(), sam.notifier.shown)
+        }
+
+    // ---- A slow network never holds up the phone ----------------------------------
+
+    @Test
+    fun `reporting does not wait for a relay that does not answer`() =
+        runTest {
+            pair(alex, sam)
+            network.stall()
+            alex.buddies.tellBuddies(instagramHit)
+            val delivery = launch { alex.buddies.deliver() }
+            runCurrent()
+
+            val reported =
+                withTimeoutOrNull(1_000) { alex.buddies.tellBuddies(BuddyMessage.LimitDeleted("Instagram", 60)) }
+
+            assertNotNull(reported, "telling the buddies waited for the relay")
+            network.answer()
+            delivery.join()
+            network.settle()
+            assertEquals(listOf(instagramHit, BuddyMessage.LimitDeleted("Instagram", 60)), sam.history.messages)
+        }
+
+    @Test
+    fun `reporting does not wait for a push service that does not answer`() =
+        runTest {
+            pair(alex, sam)
+            alex.pushStalled = CompletableDeferred()
+            val refresh = launch { alex.buddies.refreshAddress() }
+            runCurrent()
+
+            val reported = withTimeoutOrNull(1_000) { alex.buddies.tellBuddies(instagramHit) }
+
+            assertNotNull(reported, "telling the buddies waited for the push service")
+            refresh.cancel()
+        }
+
+    @Test
+    fun `messages still arrive while a relay does not answer another delivery`() =
+        runTest {
+            pair(alex, sam)
+            pair(sender = sam, buddy = alex)
+            network.stall()
+            alex.buddies.tellBuddies(instagramHit)
+            val delivery = launch { alex.buddies.deliver() }
+            runCurrent()
+            val stalled = network.stalled
+            network.stalled = null
+            sam.buddies.tellBuddies(BuddyMessage.LimitHit("TikTok", 30, 1_800_000_000))
+
+            val received = withTimeoutOrNull(1_000) { sam.buddies.deliver() }
+
+            assertNotNull(received, "receiving waited for the relay")
+            assertEquals(listOf("limitHit Sam TikTok"), alex.notifier.shown)
+            stalled?.complete(Unit)
+            delivery.join()
+        }
+
+    @Test
+    fun `two deliveries at the same time send every message once`() =
+        runTest {
+            pair(alex, sam)
+            val trafficBefore = network.traffic.size
+            network.stall()
+            alex.buddies.tellBuddies(instagramHit)
+            val first = launch { alex.buddies.deliver() }
+            val second = launch { alex.buddies.deliver() }
+            runCurrent()
+
+            network.answer()
+            first.join()
+            second.join()
+
+            assertEquals(listOf<BuddyMessage>(instagramHit), sam.history.messages)
+            assertEquals(1, network.traffic.size - trafficBefore)
+        }
+
+    @Test
+    fun `a partner is not marked unreachable for an address that changed while sending`() =
+        runTest {
+            pair(alex, sam)
+            val oldAddress = sam.address
+            network.stall()
+            alex.buddies.tellBuddies(instagramHit)
+            val delivery = launch { alex.buddies.deliver() }
+            runCurrent()
+            val stalled = network.stalled
+            network.stalled = null
+            sam.address = PushAddress("new-address-of-Sam")
+            sam.buddies.refreshAddress()
+            sam.buddies.deliver()
+            network.unregister(oldAddress)
+
+            stalled?.complete(Unit)
+            delivery.join()
+            network.settle()
+
+            assertEquals(PairingState.ACTIVE, alex.onlyPairing().state)
+            assertEquals(listOf<BuddyMessage>(instagramHit), sam.history.messages)
         }
 
     // ---- Addresses -----------------------------------------------------------------

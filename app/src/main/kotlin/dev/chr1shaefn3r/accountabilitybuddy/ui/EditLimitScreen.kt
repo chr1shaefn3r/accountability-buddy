@@ -32,6 +32,7 @@ import androidx.compose.material3.TimeInput
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -103,13 +104,23 @@ private fun LimitForm(
     val budget = Duration.ofHours(time.hour.toLong()).plusMinutes(time.minute.toLong())
     val valid = name.isNotBlank() && budget >= Limit.MIN_BUDGET && apps.isNotEmpty()
 
-    fun candidate() = Limit(existing?.id ?: LimitId(UUID.randomUUID().toString()), name.trim(), budget, apps)
+    // A new limit gets its identity once, so that saving twice can never create two limits.
+    val id = rememberSaveable { existing?.id?.value ?: UUID.randomUUID().toString() }
+    var saving by remember { mutableStateOf(false) }
+
+    fun candidate() = Limit(LimitId(id), name.trim(), budget, apps)
 
     fun save() {
+        if (saving) return
+        saving = true
         scope.launch {
-            app.limits.save(candidate())
-            app.wakeUp()
-            onBack()
+            try {
+                app.limits.save(candidate())
+                app.wakeUp()
+                onBack()
+            } finally {
+                saving = false
+            }
         }
     }
 
@@ -139,7 +150,7 @@ private fun LimitForm(
                         val weakened = existing?.weakenedBy(candidate()).orEmpty().isNotEmpty()
                         if (weakened && hasBuddies) confirmingWeakening = true else save()
                     },
-                    enabled = valid,
+                    enabled = valid && !saving,
                 ) { Text("Save") }
             }
         },
@@ -177,15 +188,18 @@ private fun LimitForm(
                     )
                 }.sortedBy { it.label.lowercase() }
                 .forEach {
-                    ListItem(
-                        headlineContent = { Text(it.label) },
-                        leadingContent = { AppIcon(it.id) },
-                        trailingContent = {
-                            IconButton(onClick = { apps = apps - it.id }) {
-                                Icon(Icons.Default.Close, contentDescription = "Remove ${it.label}")
-                            }
-                        },
-                    )
+                    // Each row belongs to its app, so that a row never shows leftovers of another app.
+                    key(it.id) {
+                        ListItem(
+                            headlineContent = { Text(it.label) },
+                            leadingContent = { AppIcon(it.id) },
+                            trailingContent = {
+                                IconButton(onClick = { apps = apps - it.id }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Remove ${it.label}")
+                                }
+                            },
+                        )
+                    }
                 }
             OutlinedButton(onClick = { pickingApps = true }, modifier = Modifier.fillMaxWidth()) { Text("Add apps") }
             Spacer(Modifier.height(24.dp))
