@@ -32,3 +32,7 @@ render.experimental.xml
 
 # Android Profiling
 *.hprof
+
+# Cloud Function
+functions/node_modules/
+functions/lib/
