@@ -41,6 +41,7 @@ import androidx.core.graphics.drawable.toBitmap
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The top bar of every page below the two main destinations.
@@ -95,7 +96,8 @@ fun AppIcon(
     size: Dp = 40.dp,
 ) {
     val context = LocalContext.current
-    val icon by produceState<ImageBitmap?>(null, app) {
+    val icon by produceState(loadedIcons[app], app) {
+        if (value != null) return@produceState
         value =
             withContext(Dispatchers.IO) {
                 try {
@@ -103,6 +105,7 @@ fun AppIcon(
                         .getApplicationIcon(app.packageName)
                         .toBitmap(ICON_PIXELS, ICON_PIXELS)
                         .asImageBitmap()
+                        .also { loadedIcons[app] = it }
                 } catch (_: PackageManager.NameNotFoundException) {
                     null
                 }
@@ -114,6 +117,9 @@ fun AppIcon(
 }
 
 private const val ICON_PIXELS = 96
+
+/** Icons loaded once are shown at once the next time, instead of popping in again. */
+private val loadedIcons = ConcurrentHashMap<AppId, ImageBitmap>()
 
 @Composable
 fun ConfirmDialog(

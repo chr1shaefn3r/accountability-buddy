@@ -15,6 +15,8 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.InstalledApp
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingHealth
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.Instant
 
@@ -37,13 +39,24 @@ class PhoneUsage(
                 context.packageName,
             ) == AppOpsManager.MODE_ALLOWED
 
-    override fun foregroundIntervals(
+    private val events = RememberedEvents(::readEvents)
+
+    /** Reading usage statistics takes time, so it never happens on the thread that draws the screen. */
+    override suspend fun foregroundIntervals(
         from: Instant,
         to: Instant,
-    ): List<ForegroundInterval>? {
-        if (!hasUsageAccess) return null
-        val queryFrom = from - LOOK_BACK
-        val events = usageStats.queryEvents(queryFrom.toEpochMilli(), to.toEpochMilli())
+    ): List<ForegroundInterval>? =
+        withContext(Dispatchers.Default) {
+            if (!hasUsageAccess) return@withContext null
+            val queryFrom = from - LOOK_BACK
+            foregroundIntervals(events.between(queryFrom, to), queryFrom, to)
+        }
+
+    private fun readEvents(
+        from: Instant,
+        to: Instant,
+    ): List<UsageEvent> {
+        val events = usageStats.queryEvents(from.toEpochMilli(), to.toEpochMilli())
         val translated = mutableListOf<UsageEvent>()
         val event = UsageEvents.Event()
         while (events.getNextEvent(event)) {
@@ -58,7 +71,7 @@ class PhoneUsage(
                 -> translated += UsageEvent.ScreenOff(at)
             }
         }
-        return foregroundIntervals(translated, queryFrom, to)
+        return translated
     }
 
     override fun currentProblems(): Set<TrackingProblem> =

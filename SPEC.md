@@ -332,6 +332,11 @@ full-screen page with a back arrow. Navigation is never more than two levels dee
 - **Accessibility.** Screen-reader labels on every control, touch targets of at least
   48 dp, layouts that hold up at the largest font size, and information never
   conveyed by colour alone.
+- **Pages appear at once.** A page shows what it already knows immediately and fills in
+  the rest when it is ready. "My limits" lists the limits straight away with their last
+  known usage; a limit whose usage is not measured yet says so instead of holding the
+  page back. Reading usage statistics never happens on the thread that draws the screen,
+  and only events since the last look are read. Changing pages uses a short fade.
 - **The keyboard never hides the way forward.** Forms scroll above the keyboard, and
   the action that completes a form stays visible while typing.
 - **Durations** are always written as "1h 45m".

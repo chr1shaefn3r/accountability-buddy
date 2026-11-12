@@ -14,6 +14,8 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Usage
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageSource
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.newHits
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Clock
@@ -38,6 +40,13 @@ class LimitsService(
     private val clock: Clock,
 ) {
     private val mutex = Mutex()
+    private val latestStatuses = MutableStateFlow<List<LimitStatus>?>(null)
+
+    /**
+     * The status of all limits as it was last worked out, or null if it never was.
+     * At hand at once, for showing it without waiting; every use case keeps it up to date.
+     */
+    val statuses: StateFlow<List<LimitStatus>?> = latestStatuses
 
     /** Creates or changes a limit. Buddies learn about every way in which it got weaker. */
     suspend fun save(limit: Limit) =
@@ -50,6 +59,7 @@ class LimitsService(
                 events.hitLifted(limit.id)
             }
             checkToday()
+            refreshStatuses()
         }
 
     suspend fun delete(id: LimitId) =
@@ -59,6 +69,7 @@ class LimitsService(
             limits.delete(id)
             events.setupWeakened(limit.deleted())
             if (standingHit(limit) != null) events.hitLifted(id)
+            refreshStatuses()
         }
 
     /**
@@ -70,15 +81,21 @@ class LimitsService(
             reportTrackingProblems()
             closePastDays()
             checkToday()
+            refreshStatuses()
         }
 
-    suspend fun today(): List<LimitStatus> =
-        mutex.withLock {
-            val today = currentDay()
-            val usage = usageOn(today) ?: Usage.NONE
-            val hits = hitLog.hitsOn(today)
-            limits.all().map { limit -> LimitStatus(limit, usage.of(limit), hits.any { it.standsFor(limit) }) }
-        }
+    /** Works out the status of all limits as of now. */
+    suspend fun today(): List<LimitStatus> = mutex.withLock { refreshStatuses() }
+
+    private suspend fun refreshStatuses(): List<LimitStatus> {
+        val today = currentDay()
+        val usage = usageOn(today) ?: Usage.NONE
+        val hits = hitLog.hitsOn(today)
+        return limits
+            .all()
+            .map { limit -> LimitStatus(limit, usage.of(limit), hits.any { it.standsFor(limit) }) }
+            .also { latestStatuses.value = it }
+    }
 
     /** Today's hit of [limit], unless the limit was weakened since. */
     private suspend fun standingHit(limit: Limit): LimitHit? =
@@ -130,7 +147,7 @@ class LimitsService(
         }
     }
 
-    private fun usageOn(day: Day): Usage? {
+    private suspend fun usageOn(day: Day): Usage? {
         val zone = clock.zone
         val until = minOf(clock.instant(), day.end(zone))
         val intervals = usageSource.foregroundIntervals(day.start(zone), until) ?: return null

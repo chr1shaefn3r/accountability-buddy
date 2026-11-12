@@ -2,6 +2,7 @@ package dev.chr1shaefn3r.accountabilitybuddy.infrastructure.usage
 
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.ForegroundInterval
+import java.time.Duration
 import java.time.Instant
 
 /** The events of Android's usage statistics that matter for foreground time. */
@@ -86,5 +87,45 @@ private class ForegroundTracker(
     fun close(at: Instant) {
         current?.let { if (at > since) intervals += ForegroundInterval(it, since, at) }
         current = null
+    }
+}
+
+/**
+ * Remembers the usage events of a time span, so that looking at the span again only costs
+ * reading the newest events instead of the whole day.
+ *
+ * Events of the last [SETTLE_TIME] are read again every time, because the system may
+ * record an event a moment after it happened.
+ */
+class RememberedEvents(
+    private val read: (from: Instant, to: Instant) -> List<UsageEvent>,
+) {
+    private var spanStart: Instant? = null
+    private var settledUntil: Instant = Instant.MIN
+    private val settled = mutableListOf<UsageEvent>()
+
+    /** The events from [from] (inclusive) to [to] (exclusive), oldest first. */
+    @Synchronized
+    fun between(
+        from: Instant,
+        to: Instant,
+    ): List<UsageEvent> {
+        if (from != spanStart || to < settledUntil) {
+            spanStart = from
+            settledUntil = from
+            settled.clear()
+        }
+        val fresh = read(settledUntil, to)
+        val all = settled + fresh
+        val settleUntil = to - SETTLE_TIME
+        if (settleUntil > settledUntil) {
+            settled += fresh.filter { it.at < settleUntil }
+            settledUntil = settleUntil
+        }
+        return all
+    }
+
+    companion object {
+        val SETTLE_TIME: Duration = Duration.ofSeconds(10)
     }
 }

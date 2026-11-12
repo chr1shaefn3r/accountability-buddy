@@ -29,7 +29,7 @@ interface HitLog {
 /** The phone's record of which app was in the foreground when. */
 interface UsageSource {
     /** Foreground intervals overlapping the given time span, or null if usage access is missing. */
-    fun foregroundIntervals(
+    suspend fun foregroundIntervals(
         from: Instant,
         to: Instant,
     ): List<ForegroundInterval>?

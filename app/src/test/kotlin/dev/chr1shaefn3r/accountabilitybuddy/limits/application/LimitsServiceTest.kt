@@ -109,6 +109,36 @@ class LimitsServiceTest {
         }
 
     @Test
+    fun `the latest status of all limits is at hand without asking again`() =
+        runTest {
+            assertEquals(null, service.statuses.value)
+
+            service.save(insta)
+            assertEquals(listOf(LimitStatus(insta, Duration.ZERO, hit = false)), service.statuses.value)
+
+            used(instagram, "2026-11-12T08:00:00", "2026-11-12T09:00:00")
+            clock.set("2026-11-12T09:00:00")
+            service.check()
+            assertEquals(listOf(LimitStatus(insta, Duration.ofHours(1), hit = true)), service.statuses.value)
+
+            service.delete(insta.id)
+            assertEquals(emptyList(), service.statuses.value)
+        }
+
+    @Test
+    fun `asking for today brings the status at hand up to date`() =
+        runTest {
+            service.save(insta)
+            used(instagram, "2026-11-12T08:00:00", "2026-11-12T08:10:00")
+            clock.set("2026-11-12T08:10:00")
+
+            val today = service.today()
+
+            assertEquals(Duration.ofMinutes(10), today.single().used)
+            assertEquals(today, service.statuses.value)
+        }
+
+    @Test
     fun `a day that is over is closed with the final usage of every hit limit`() =
         runTest {
             service.save(insta)

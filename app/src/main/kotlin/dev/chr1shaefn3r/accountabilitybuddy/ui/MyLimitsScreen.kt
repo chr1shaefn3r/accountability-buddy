@@ -49,6 +49,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.Pairing
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PairingState
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PartnerRole
 import dev.chr1shaefn3r.accountabilitybuddy.limits.application.LimitStatus
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Limit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import kotlinx.coroutines.delay
@@ -72,15 +73,20 @@ fun MyLimitsScreen(
     val pairings by app.pairings.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
     val resumes = rememberResumeCount()
     val lifecycle = LocalLifecycleOwner.current
-    var statuses by remember { mutableStateOf<List<LimitStatus>>(emptyList()) }
-    LaunchedEffect(limits) {
+    // The last known usage is at hand at once; it is brought up to date while the page is visible.
+    val statuses by app.limits.statuses.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
-                statuses = app.limits.today()
+                app.limits.today()
                 delay(REFRESH_MILLIS)
             }
         }
     }
+    // The page never waits for usage to be measured: a limit is listed as soon as it is known.
+    val cards =
+        limits?.map { limit -> limit to statuses?.firstOrNull { it.limit == limit } }
+            ?: statuses?.map { it.limit to it }.orEmpty()
     val problems =
         remember(resumes, limits) { if (limits.isNullOrEmpty()) emptySet() else app.phone.currentProblems() }
 
@@ -135,7 +141,9 @@ fun MyLimitsScreen(
                     )
                 }
             }
-            items(statuses, key = { it.limit.id.value }) { LimitCard(it, onClick = { onEditLimit(it.limit.id) }) }
+            items(cards, key = { it.first.id.value }) { (limit, status) ->
+                LimitCard(limit, status, onClick = { onEditLimit(limit.id) })
+            }
         }
     }
 
@@ -218,16 +226,17 @@ private fun ProblemBanner(problem: TrackingProblem) {
 
 @Composable
 private fun LimitCard(
-    status: LimitStatus,
+    limit: Limit,
+    status: LimitStatus?,
     onClick: () -> Unit,
 ) {
-    val limit = status.limit
-    val fraction = (status.used.seconds.toFloat() / limit.budget.seconds).coerceIn(0f, 1f)
+    val hit = status?.hit == true
+    val fraction = status?.let { (it.used.seconds.toFloat() / limit.budget.seconds).coerceIn(0f, 1f) } ?: 0f
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(limit.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                if (status.hit) {
+                if (hit) {
                     Text(
                         "Limit reached",
                         style = MaterialTheme.typography.labelLarge,
@@ -243,10 +252,13 @@ private fun LimitCard(
             LinearProgressIndicator(
                 progress = { fraction },
                 modifier = Modifier.fillMaxWidth(),
-                color = if (status.hit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                color = if (hit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.height(8.dp))
-            Text(usageText(status.used, limit.budget), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                status?.let { usageText(it.used, limit.budget) } ?: "Measuring today's usage…",
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }

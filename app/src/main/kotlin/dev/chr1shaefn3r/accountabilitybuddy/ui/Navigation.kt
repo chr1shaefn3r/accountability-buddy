@@ -1,5 +1,8 @@
 package dev.chr1shaefn3r.accountabilitybuddy.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -22,6 +25,8 @@ fun AppTheme(content: @Composable () -> Unit) {
     val colors = if (isSystemInDarkTheme()) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     MaterialTheme(colorScheme = colors, content = content)
 }
+
+private const val PAGE_FADE_MILLIS = 120
 
 @Serializable
 internal object Onboarding
@@ -52,7 +57,13 @@ internal object Settings
 fun AppNavigation(app: AccountabilityBuddyApp) {
     val navigation = rememberNavController()
     val back: () -> Unit = { navigation.popBackStack() }
-    NavHost(navigation, startDestination = if (app.preferences.isOnboarded) Home else Onboarding) {
+    NavHost(
+        navController = navigation,
+        startDestination = if (app.preferences.isOnboarded) Home else Onboarding,
+        // The default fade between pages takes 0.7 seconds, which makes every page feel late.
+        enterTransition = { fadeIn(tween(PAGE_FADE_MILLIS)) },
+        exitTransition = { fadeOut(tween(PAGE_FADE_MILLIS)) },
+    ) {
         composable<Onboarding> {
             OnboardingScreen(
                 app = app,
