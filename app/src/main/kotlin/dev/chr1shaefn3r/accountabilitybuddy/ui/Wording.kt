@@ -42,9 +42,15 @@ fun LocalDate.asTextRelativeTo(today: LocalDate): String =
         else -> asText()
     }
 
-fun limitReachedText(limitName: String, budget: Duration): String = "$limitName: ${budget.asText()} limit reached"
+fun limitReachedText(
+    limitName: String,
+    budget: Duration,
+): String = "$limitName: ${budget.asText()} limit reached"
 
-fun usageText(used: Duration, budget: Duration): String = "${used.asText()} of ${budget.asText()}"
+fun usageText(
+    used: Duration,
+    budget: Duration,
+): String = "${used.asText()} of ${budget.asText()}"
 
 /** One line that says what a message from a sender reports. */
 fun BuddyMessage.asText(): String =
@@ -80,22 +86,34 @@ fun quietText(daysSinceLastEvent: Long?): String =
     }
 
 /** The one line shown for a sender in the list of people the user supports. */
-fun senderStatusText(pairing: Pairing, latest: HistoryEntry?, today: LocalDate, zone: ZoneId): String =
+fun senderStatusText(
+    pairing: Pairing,
+    latest: HistoryEntry?,
+    today: LocalDate,
+    zone: ZoneId,
+): String =
     when (pairing.state) {
         PairingState.REQUESTED -> "Waiting for ${pairing.displayName} to confirm"
         PairingState.AWAITING_CONFIRMATION -> "Waiting for your confirmation"
         PairingState.ENDED -> "Pairing ended"
         PairingState.UNREACHABLE -> "Cannot be reached at the moment"
-        PairingState.ACTIVE -> {
-            val date = latest?.at?.atZone(zone)?.toLocalDate()
-            val daysAgo = date?.let { ChronoUnit.DAYS.between(it, today) }
-            if (latest != null && date != null && daysAgo != null && daysAgo <= 1) {
-                "${date.asTextRelativeTo(today)}: ${latest.message.asText().lineSequence().first()}"
-            } else {
-                quietText(daysAgo)
-            }
-        }
+        PairingState.ACTIVE -> activeSenderStatusText(latest, today, zone)
     }
+
+private fun activeSenderStatusText(
+    latest: HistoryEntry?,
+    today: LocalDate,
+    zone: ZoneId,
+): String {
+    if (latest == null) return quietText(null)
+    val date = latest.at.atZone(zone).toLocalDate()
+    val daysAgo = ChronoUnit.DAYS.between(date, today)
+    return if (daysAgo <= 1) {
+        "${date.asTextRelativeTo(today)}: ${latest.message.asText().lineSequence().first()}"
+    } else {
+        quietText(daysAgo)
+    }
+}
 
 /** The one line shown for a buddy in the sender's list of buddies. */
 fun buddyStatusText(pairing: Pairing): String =

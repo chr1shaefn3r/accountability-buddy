@@ -62,7 +62,11 @@ private val appsSaver =
 
 /** Creates a new limit, or changes or deletes the one with [limitId]. */
 @Composable
-fun EditLimitScreen(app: AccountabilityBuddyApp, limitId: LimitId?, onBack: () -> Unit) {
+fun EditLimitScreen(
+    app: AccountabilityBuddyApp,
+    limitId: LimitId?,
+    onBack: () -> Unit,
+) {
     if (limitId == null) {
         LimitForm(app, existing = null, onBack = onBack)
         return
@@ -73,7 +77,11 @@ fun EditLimitScreen(app: AccountabilityBuddyApp, limitId: LimitId?, onBack: () -
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LimitForm(app: AccountabilityBuddyApp, existing: Limit?, onBack: () -> Unit) {
+private fun LimitForm(
+    app: AccountabilityBuddyApp,
+    existing: Limit?,
+    onBack: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val pairings by app.pairings.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
     val hasBuddies = pairings.any { it.partnerRole == PartnerRole.BUDDY && it.state == PairingState.ACTIVE }
@@ -145,17 +153,24 @@ private fun LimitForm(app: AccountabilityBuddyApp, existing: Limit?, onBack: () 
             }
             Spacer(Modifier.height(16.dp))
             Text("Apps sharing this time", style = MaterialTheme.typography.titleSmall)
-            apps.map { InstalledApp(it, remember(it) { app.phone.label(it) }) }.sortedBy { it.label.lowercase() }.forEach {
-                ListItem(
-                    headlineContent = { Text(it.label) },
-                    leadingContent = { AppIcon(it.id) },
-                    trailingContent = {
-                        IconButton(onClick = { apps = apps - it.id }) {
-                            Icon(Icons.Default.Close, contentDescription = "Remove ${it.label}")
-                        }
-                    },
-                )
-            }
+            apps
+                .map {
+                    InstalledApp(
+                        it,
+                        remember(it) { app.phone.label(it) },
+                    )
+                }.sortedBy { it.label.lowercase() }
+                .forEach {
+                    ListItem(
+                        headlineContent = { Text(it.label) },
+                        leadingContent = { AppIcon(it.id) },
+                        trailingContent = {
+                            IconButton(onClick = { apps = apps - it.id }) {
+                                Icon(Icons.Default.Close, contentDescription = "Remove ${it.label}")
+                            }
+                        },
+                    )
+                }
             OutlinedButton(onClick = { pickingApps = true }, modifier = Modifier.fillMaxWidth()) { Text("Add apps") }
             Spacer(Modifier.height(24.dp))
             Button(
@@ -204,7 +219,11 @@ private const val MAX_MINUTE = 59
 
 /** A searchable list of the installed apps with a checkbox each. */
 @Composable
-private fun AppPicker(app: AccountabilityBuddyApp, selected: Set<AppId>, onDone: (Set<AppId>) -> Unit) {
+private fun AppPicker(
+    app: AccountabilityBuddyApp,
+    selected: Set<AppId>,
+    onDone: (Set<AppId>) -> Unit,
+) {
     var chosen by rememberSaveable(stateSaver = appsSaver) { mutableStateOf(selected) }
     var search by rememberSaveable { mutableStateOf("") }
     val installed by produceState<List<InstalledApp>?>(null) {
@@ -227,7 +246,10 @@ private fun AppPicker(app: AccountabilityBuddyApp, selected: Set<AppId>, onDone:
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             )
             LazyColumn {
-                items(installed.orEmpty().filter { it.label.contains(search.trim(), ignoreCase = true) }, key = { it.id.packageName }) {
+                items(
+                    installed.orEmpty().filter { it.label.contains(search.trim(), ignoreCase = true) },
+                    key = { it.id.packageName },
+                ) {
                     val checked = it.id in chosen
                     ListItem(
                         headlineContent = { Text(it.label) },

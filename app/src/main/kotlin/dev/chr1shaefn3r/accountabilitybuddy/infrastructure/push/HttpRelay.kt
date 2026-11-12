@@ -12,8 +12,13 @@ import java.net.URL
 import java.util.Base64
 
 /** Hands sealed messages to the relay function over HTTPS. */
-class HttpRelay(private val url: URL) : Relay {
-    override suspend fun send(to: PushAddress, wire: ByteArray): Relay.Outcome =
+class HttpRelay(
+    private val url: URL,
+) : Relay {
+    override suspend fun send(
+        to: PushAddress,
+        wire: ByteArray,
+    ): Relay.Outcome =
         withContext(Dispatchers.IO) {
             val body =
                 buildJsonObject {
@@ -56,6 +61,7 @@ class HttpRelay(private val url: URL) : Relay {
             }
 
         /** The relay function lives in the same Firebase project as the push messages. */
-        fun urlFor(firebaseProjectId: String): URL = URL("https://europe-west1-$firebaseProjectId.cloudfunctions.net/relay")
+        fun urlFor(firebaseProjectId: String): URL =
+            URL("https://europe-west1-$firebaseProjectId.cloudfunctions.net/relay")
     }
 }

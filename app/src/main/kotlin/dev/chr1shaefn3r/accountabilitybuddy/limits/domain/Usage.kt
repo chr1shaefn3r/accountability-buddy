@@ -5,10 +5,16 @@ import java.time.Instant
 import java.time.ZoneId
 
 /** A stretch of time during which [app] was in the foreground. */
-data class ForegroundInterval(val app: AppId, val start: Instant, val end: Instant)
+data class ForegroundInterval(
+    val app: AppId,
+    val start: Instant,
+    val end: Instant,
+)
 
 /** Foreground time per app within one day. */
-class Usage private constructor(private val perApp: Map<AppId, Duration>) {
+class Usage private constructor(
+    private val perApp: Map<AppId, Duration>,
+) {
     fun of(apps: Set<AppId>): Duration = apps.fold(Duration.ZERO) { sum, app -> sum + (perApp[app] ?: Duration.ZERO) }
 
     fun of(limit: Limit): Duration = of(limit.apps)
@@ -17,7 +23,11 @@ class Usage private constructor(private val perApp: Map<AppId, Duration>) {
         val NONE = Usage(emptyMap())
 
         /** Sums up [intervals], counting only the parts that lie within [day]. */
-        fun on(day: Day, zone: ZoneId, intervals: List<ForegroundInterval>): Usage {
+        fun on(
+            day: Day,
+            zone: ZoneId,
+            intervals: List<ForegroundInterval>,
+        ): Usage {
             val dayStart = day.start(zone)
             val dayEnd = day.end(zone)
             val perApp = mutableMapOf<AppId, Duration>()

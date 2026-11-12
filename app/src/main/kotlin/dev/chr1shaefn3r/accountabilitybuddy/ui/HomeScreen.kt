@@ -20,7 +20,10 @@ import dev.chr1shaefn3r.accountabilitybuddy.R
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PairingId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 
-private enum class Destination(val title: String, val icon: Int) {
+private enum class Destination(
+    val title: String,
+    val icon: Int,
+) {
     MY_LIMITS("My limits", R.drawable.ic_limits),
     SUPPORTING("Supporting", R.drawable.ic_supporting),
 }

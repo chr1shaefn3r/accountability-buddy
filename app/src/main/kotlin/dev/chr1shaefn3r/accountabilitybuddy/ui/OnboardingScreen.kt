@@ -36,11 +36,15 @@ private const val STEP_NOTIFICATIONS = 2
 
 /** The introduction: what the app does, the display name, and the notification permission. */
 @Composable
-fun OnboardingScreen(app: AccountabilityBuddyApp, onDone: () -> Unit) {
+fun OnboardingScreen(
+    app: AccountabilityBuddyApp,
+    onDone: () -> Unit,
+) {
     var step by rememberSaveable { mutableIntStateOf(STEP_WELCOME) }
     var name by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    val askForNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { onDone() }
+    val askForNotifications =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { onDone() }
 
     when (step) {
         STEP_WELCOME ->
@@ -99,7 +103,12 @@ private fun OnboardingStep(
 ) {
     Scaffold { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp).verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center,
         ) {
             Text(title, style = MaterialTheme.typography.headlineMedium)

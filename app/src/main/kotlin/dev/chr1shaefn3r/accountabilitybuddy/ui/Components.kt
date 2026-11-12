@@ -44,7 +44,11 @@ import kotlinx.coroutines.withContext
 /** The top bar of every page below the two main destinations. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PageTopBar(title: String, onBack: () -> Unit, actions: @Composable () -> Unit = {}) {
+fun PageTopBar(
+    title: String,
+    onBack: () -> Unit,
+    actions: @Composable () -> Unit = {},
+) {
     TopAppBar(
         title = { Text(title) },
         navigationIcon = {
@@ -58,7 +62,12 @@ fun PageTopBar(title: String, onBack: () -> Unit, actions: @Composable () -> Uni
 
 /** What a screen without content shows: what it is for, and the one action that fills it. */
 @Composable
-fun EmptyState(text: String, action: String, onAction: () -> Unit, modifier: Modifier = Modifier) {
+fun EmptyState(
+    text: String,
+    action: String,
+    onAction: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Text(text, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
@@ -70,13 +79,18 @@ fun EmptyState(text: String, action: String, onAction: () -> Unit, modifier: Mod
 
 /** The launcher icon of an installed app. Purely decorative: the app's name is always shown next to it. */
 @Composable
-fun AppIcon(app: AppId, size: Dp = 40.dp) {
+fun AppIcon(
+    app: AppId,
+    size: Dp = 40.dp,
+) {
     val context = LocalContext.current
     val icon by produceState<ImageBitmap?>(null, app) {
         value =
             withContext(Dispatchers.IO) {
                 try {
-                    context.packageManager.getApplicationIcon(app.packageName).toBitmap(ICON_PIXELS, ICON_PIXELS)
+                    context.packageManager
+                        .getApplicationIcon(app.packageName)
+                        .toBitmap(ICON_PIXELS, ICON_PIXELS)
                         .asImageBitmap()
                 } catch (_: PackageManager.NameNotFoundException) {
                     null

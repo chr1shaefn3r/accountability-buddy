@@ -32,7 +32,11 @@ class LimitsServiceTest {
     private val insta = Limit(LimitId("insta"), "Instagram", Duration.ofHours(1), setOf(instagram))
     private val today = Day(LocalDate.of(2026, 11, 12))
 
-    private fun used(app: AppId, from: String, to: String) {
+    private fun used(
+        app: AppId,
+        from: String,
+        to: String,
+    ) {
         usage.intervals += ForegroundInterval(app, clock.at(from), clock.at(to))
     }
 
@@ -186,7 +190,13 @@ class LimitsServiceTest {
             service.check()
 
             assertEquals(today, events.hits.single().day)
-            assertEquals(listOf("Instagram"), events.closedDays.single().entries.map { it.limitName })
+            assertEquals(
+                listOf("Instagram"),
+                events.closedDays
+                    .single()
+                    .entries
+                    .map { it.limitName },
+            )
         }
 
     @Test

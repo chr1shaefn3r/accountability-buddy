@@ -15,8 +15,22 @@ class SecureChannelTest {
     private val invitation = InvitationSecret(pairingId, crypto.randomBytes(Invitation.SECRET_SIZE))
     private val sender = crypto.newKeyPair()
     private val buddy = crypto.newKeyPair()
-    private val senderKeys = SessionKeys.derive(crypto, sender.privateKey, buddy.publicKey, invitation, iAmSender = true)
-    private val buddyKeys = SessionKeys.derive(crypto, buddy.privateKey, sender.publicKey, invitation, iAmSender = false)
+    private val senderKeys =
+        SessionKeys.derive(
+            crypto,
+            sender.privateKey,
+            buddy.publicKey,
+            invitation,
+            iAmSender = true,
+        )
+    private val buddyKeys =
+        SessionKeys.derive(
+            crypto,
+            buddy.privateKey,
+            sender.publicKey,
+            invitation,
+            iAmSender = false,
+        )
     private val hit = BuddyMessage.LimitHit("Instagram", 60, 1_800_000_000)
 
     @Test
@@ -49,7 +63,14 @@ class SecureChannelTest {
                 1,
                 BuddyMessage.DayClosed("2026-11-12", List(10) { BuddyMessage.DayClosed.Entry("Limit $it", 60, 90) }),
             )
-        val request = channel.seal(pairingId, buddyKeys, 0, BuddyMessage.PairingRequested("Sam", "token"), buddy.publicKey)
+        val request =
+            channel.seal(
+                pairingId,
+                buddyKeys,
+                0,
+                BuddyMessage.PairingRequested("Sam", "token"),
+                buddy.publicKey,
+            )
 
         assertEquals(short.size, long.size)
         assertEquals(short.size, request.size)

@@ -71,7 +71,15 @@ class AccountabilityBuddyApp : Application() {
                 invitations = roomPairings,
                 outbox = RoomOutbox(database.messages()),
                 deliverySchedule = WorkManagerDeliverySchedule(this),
-                relay = HttpRelay(HttpRelay.urlFor(FirebaseApp.getInstance().options.projectId.orEmpty())),
+                relay =
+                    HttpRelay(
+                        HttpRelay.urlFor(
+                            FirebaseApp
+                                .getInstance()
+                                .options.projectId
+                                .orEmpty(),
+                        ),
+                    ),
                 received = RoomReceivedLog(database.messages()),
                 history = history,
                 notifier = notifications,

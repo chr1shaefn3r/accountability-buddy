@@ -22,7 +22,8 @@ class BuddyReporterTest {
     private val shownToSender = mutableListOf<LimitHit>()
     private val apps =
         object : AppCatalog {
-            override fun label(app: AppId): String = app.packageName.substringAfterLast('.').replaceFirstChar(Char::uppercase)
+            override fun label(app: AppId): String =
+                app.packageName.substringAfterLast('.').replaceFirstChar(Char::uppercase)
 
             override fun launchableApps(): List<InstalledApp> = emptyList()
         }

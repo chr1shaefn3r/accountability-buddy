@@ -1,6 +1,7 @@
 package dev.chr1shaefn3r.accountabilitybuddy.application
 
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage
+import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage.TrackingLost.Problem
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppCatalog
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
@@ -35,8 +36,8 @@ class BuddyReporter(
                 is Weakening.TrackingLost ->
                     BuddyMessage.TrackingLost(
                         when (weakening.problem) {
-                            TrackingProblem.USAGE_ACCESS_MISSING -> BuddyMessage.TrackingLost.Problem.USAGE_ACCESS_MISSING
-                            TrackingProblem.NOTIFICATIONS_BLOCKED -> BuddyMessage.TrackingLost.Problem.NOTIFICATIONS_BLOCKED
+                            TrackingProblem.USAGE_ACCESS_MISSING -> Problem.USAGE_ACCESS_MISSING
+                            TrackingProblem.NOTIFICATIONS_BLOCKED -> Problem.NOTIFICATIONS_BLOCKED
                         },
                     )
             },

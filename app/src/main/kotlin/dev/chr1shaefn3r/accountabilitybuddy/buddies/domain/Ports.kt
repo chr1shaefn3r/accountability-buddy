@@ -10,7 +10,10 @@ interface PairingRepository {
 
     suspend fun find(id: PairingId): Pairing?
 
-    suspend fun create(pairing: Pairing, keys: SessionKeys)
+    suspend fun create(
+        pairing: Pairing,
+        keys: SessionKeys,
+    )
 
     suspend fun update(pairing: Pairing)
 
@@ -55,7 +58,10 @@ fun interface DeliverySchedule {
 
 /** The server that passes sealed messages on to another phone. */
 fun interface Relay {
-    suspend fun send(to: PushAddress, wire: ByteArray): Outcome
+    suspend fun send(
+        to: PushAddress,
+        wire: ByteArray,
+    ): Outcome
 
     enum class Outcome {
         DELIVERED,
@@ -69,13 +75,20 @@ fun interface Relay {
 /** Remembers which messages were already received, to drop replays and duplicates. */
 interface ReceivedLog {
     /** Records the message and returns true if it was not seen before. */
-    suspend fun isNew(pairingId: PairingId, counter: Long): Boolean
+    suspend fun isNew(
+        pairingId: PairingId,
+        counter: Long,
+    ): Boolean
 
     suspend fun forget(pairingId: PairingId)
 }
 
 /** Something a sender reported, kept for the buddy to look at later. */
-data class HistoryEntry(val pairingId: PairingId, val at: Instant, val message: BuddyMessage)
+data class HistoryEntry(
+    val pairingId: PairingId,
+    val at: Instant,
+    val message: BuddyMessage,
+)
 
 interface History {
     fun observe(pairingId: PairingId): Flow<List<HistoryEntry>>
@@ -98,11 +111,20 @@ interface BuddyNotifier {
 
     fun pairingEnded(pairing: Pairing)
 
-    fun limitHit(pairing: Pairing, message: BuddyMessage.LimitHit)
+    fun limitHit(
+        pairing: Pairing,
+        message: BuddyMessage.LimitHit,
+    )
 
-    fun setupWeakened(pairing: Pairing, message: BuddyMessage.SetupWeakened)
+    fun setupWeakened(
+        pairing: Pairing,
+        message: BuddyMessage.SetupWeakened,
+    )
 
-    fun daySummary(pairing: Pairing, message: BuddyMessage.DayClosed)
+    fun daySummary(
+        pairing: Pairing,
+        message: BuddyMessage.DayClosed,
+    )
 
     fun silent(pairing: Pairing)
 }
@@ -119,4 +141,6 @@ fun interface PushAddressProvider {
     suspend fun current(): PushAddress
 }
 
-class PushUnavailableException(cause: Throwable) : Exception(cause)
+class PushUnavailableException(
+    cause: Throwable,
+) : Exception(cause)

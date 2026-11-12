@@ -1,5 +1,6 @@
 package dev.chr1shaefn3r.accountabilitybuddy.infrastructure.background
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.Service
@@ -36,12 +37,17 @@ import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
 /** Sends the outbox whenever there is a network, retrying with growing pauses. */
-class DeliveryWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
+class DeliveryWorker(
+    context: Context,
+    parameters: WorkerParameters,
+) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result =
         if ((applicationContext as AccountabilityBuddyApp).buddies.deliver()) Result.success() else Result.retry()
 }
 
-class WorkManagerDeliverySchedule(private val context: Context) : DeliverySchedule {
+class WorkManagerDeliverySchedule(
+    private val context: Context,
+) : DeliverySchedule {
     override fun deliverSoon() {
         val request =
             OneTimeWorkRequestBuilder<DeliveryWorker>()
@@ -58,7 +64,10 @@ class WorkManagerDeliverySchedule(private val context: Context) : DeliverySchedu
 }
 
 /** Twice a day: looks for senders that have gone silent and tidies up old history. */
-class SilenceWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
+class SilenceWorker(
+    context: Context,
+    parameters: WorkerParameters,
+) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
         (applicationContext as AccountabilityBuddyApp).buddies.checkSilence()
         return Result.success()
@@ -111,7 +120,11 @@ class TrackingService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int,
+    ): Int = START_STICKY
 
     override fun onDestroy() {
         scope.cancel()
@@ -138,7 +151,12 @@ class TrackingService : Service() {
  * midnight, and when the clock or time zone changes.
  */
 class WakeUpReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
+    // Not exported, and every wake-up does the same harmless thing whatever the action is.
+    @SuppressLint("UnsafeProtectedBroadcastReceiver")
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
         val pending = goAsync()
         val app = context.applicationContext as AccountabilityBuddyApp
         app.background.launch {
@@ -155,8 +173,17 @@ class WakeUpReceiver : BroadcastReceiver() {
         private val AFTER_MIDNIGHT: Duration = Duration.ofSeconds(5)
 
         /** Sets an exact alarm for just after the next midnight, to close the day on time. */
-        fun scheduleMidnight(context: Context, clock: Clock) {
-            val midnight = LocalDate.now(clock).plusDays(1).atStartOfDay(clock.zone).toInstant()
+        @SuppressLint("MissingPermission") // The manifest declares USE_EXACT_ALARM, which lint does not know.
+        fun scheduleMidnight(
+            context: Context,
+            clock: Clock,
+        ) {
+            val midnight =
+                LocalDate
+                    .now(clock)
+                    .plusDays(1)
+                    .atStartOfDay(clock.zone)
+                    .toInstant()
             val intent =
                 PendingIntent.getBroadcast(
                     context,
@@ -164,11 +191,14 @@ class WakeUpReceiver : BroadcastReceiver() {
                     Intent(context, WakeUpReceiver::class.java),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
-            context.getSystemService(AlarmManager::class.java).setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                (midnight + AFTER_MIDNIGHT).toEpochMilli(),
-                intent,
-            )
+            val at = (midnight + AFTER_MIDNIGHT).toEpochMilli()
+            val alarms = context.getSystemService(AlarmManager::class.java)
+            try {
+                alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, intent)
+            } catch (_: SecurityException) {
+                // Exact alarms were taken away: the day is then closed a little later.
+                alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, intent)
+            }
         }
     }
 }

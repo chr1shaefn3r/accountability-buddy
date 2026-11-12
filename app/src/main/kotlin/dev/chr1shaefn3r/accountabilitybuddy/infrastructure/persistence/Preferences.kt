@@ -10,7 +10,10 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import java.time.LocalDate
 
 /** Small facts about this installation, kept in the app's private preferences. */
-class Preferences(context: Context) : Profile, LimitsMemory {
+class Preferences(
+    context: Context,
+) : Profile,
+    LimitsMemory {
     private val store = context.getSharedPreferences("accountability-buddy", Context.MODE_PRIVATE)
 
     override var displayName: String
@@ -26,7 +29,12 @@ class Preferences(context: Context) : Profile, LimitsMemory {
         set(value) = store.edit { putString(LAST_CLOSED_DAY, value?.date?.toString()) }
 
     override var reportedProblems: Set<TrackingProblem>
-        get() = store.getStringSet(REPORTED_PROBLEMS, emptySet()).orEmpty().map(TrackingProblem::valueOf).toSet()
+        get() =
+            store
+                .getStringSet(REPORTED_PROBLEMS, emptySet())
+                .orEmpty()
+                .map(TrackingProblem::valueOf)
+                .toSet()
         set(value) = store.edit { putStringSet(REPORTED_PROBLEMS, value.map { it.name }.toSet()) }
 
     /** True once the user has been through the introduction and chosen a display name. */

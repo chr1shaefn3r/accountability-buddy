@@ -2,7 +2,10 @@ package dev.chr1shaefn3r.accountabilitybuddy.buddies.domain
 
 import java.nio.ByteBuffer
 
-class KeyPair(val privateKey: ByteArray, val publicKey: ByteArray)
+class KeyPair(
+    val privateKey: ByteArray,
+    val publicKey: ByteArray,
+)
 
 /** The cryptographic primitives the Buddies context relies on. */
 interface Cryptography {
@@ -10,18 +13,37 @@ interface Cryptography {
 
     fun newKeyPair(): KeyPair
 
-    fun sharedSecret(privateKey: ByteArray, publicKey: ByteArray): ByteArray
+    fun sharedSecret(
+        privateKey: ByteArray,
+        publicKey: ByteArray,
+    ): ByteArray
 
-    fun deriveKey(inputKey: ByteArray, salt: ByteArray, info: ByteArray, size: Int): ByteArray
+    fun deriveKey(
+        inputKey: ByteArray,
+        salt: ByteArray,
+        info: ByteArray,
+        size: Int,
+    ): ByteArray
 
-    fun encrypt(key: ByteArray, plaintext: ByteArray, associatedData: ByteArray): ByteArray
+    fun encrypt(
+        key: ByteArray,
+        plaintext: ByteArray,
+        associatedData: ByteArray,
+    ): ByteArray
 
     /** Returns null if the ciphertext was not made with this key and associated data. */
-    fun decrypt(key: ByteArray, ciphertext: ByteArray, associatedData: ByteArray): ByteArray?
+    fun decrypt(
+        key: ByteArray,
+        ciphertext: ByteArray,
+        associatedData: ByteArray,
+    ): ByteArray?
 }
 
 /** The two keys of a pairing: one per direction. */
-class SessionKeys(val send: ByteArray, val receive: ByteArray) {
+class SessionKeys(
+    val send: ByteArray,
+    val receive: ByteArray,
+) {
     fun toBytes(): ByteArray = send + receive
 
     companion object {
@@ -48,12 +70,22 @@ class SessionKeys(val send: ByteArray, val receive: ByteArray) {
             val keys = crypto.deriveKey(shared, invitation.secret, info, 2 * KEY_SIZE)
             val senderToBuddy = keys.copyOfRange(0, KEY_SIZE)
             val buddyToSender = keys.copyOfRange(KEY_SIZE, 2 * KEY_SIZE)
-            return if (iAmSender) SessionKeys(senderToBuddy, buddyToSender) else SessionKeys(buddyToSender, senderToBuddy)
+            return if (iAmSender) {
+                SessionKeys(
+                    senderToBuddy,
+                    buddyToSender,
+                )
+            } else {
+                SessionKeys(buddyToSender, senderToBuddy)
+            }
         }
     }
 }
 
-class InvitationSecret(val pairingId: PairingId, val secret: ByteArray)
+class InvitationSecret(
+    val pairingId: PairingId,
+    val secret: ByteArray,
+)
 
 /** An encrypted message as it travels: readable header, sealed body. */
 class Envelope internal constructor(
@@ -63,7 +95,10 @@ class Envelope internal constructor(
     internal val body: ByteArray,
 )
 
-class OpenedMessage(val counter: Long, val message: BuddyMessage)
+class OpenedMessage(
+    val counter: Long,
+    val message: BuddyMessage,
+)
 
 /**
  * Turns messages into envelopes and back.
@@ -74,7 +109,9 @@ class OpenedMessage(val counter: Long, val message: BuddyMessage)
  * The public key field carries the buddy's public key in a pairing request and
  * random bytes otherwise.
  */
-class SecureChannel(private val crypto: Cryptography) {
+class SecureChannel(
+    private val crypto: Cryptography,
+) {
     fun seal(
         pairingId: PairingId,
         keys: SessionKeys,
@@ -85,7 +122,8 @@ class SecureChannel(private val crypto: Cryptography) {
         val encoded = BuddyMessage.encode(message)
         require(encoded.size <= MAX_MESSAGE_SIZE) { "Message of ${encoded.size} bytes is too long" }
         val frame =
-            ByteBuffer.allocate(FRAME_SIZE)
+            ByteBuffer
+                .allocate(FRAME_SIZE)
                 .putLong(counter)
                 .putShort(encoded.size.toShort())
                 .put(encoded)
@@ -107,7 +145,10 @@ class SecureChannel(private val crypto: Cryptography) {
     }
 
     /** Returns null if the envelope was not sealed with the matching keys or is malformed. */
-    fun open(envelope: Envelope, keys: SessionKeys): OpenedMessage? {
+    fun open(
+        envelope: Envelope,
+        keys: SessionKeys,
+    ): OpenedMessage? {
         val frame = crypto.decrypt(keys.receive, envelope.body, envelope.header) ?: return null
         if (frame.size != FRAME_SIZE) return null
         val buffer = ByteBuffer.wrap(frame)

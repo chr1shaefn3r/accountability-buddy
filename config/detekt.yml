@@ -1,1 +1,41 @@
-{}
+# Deviations from detekt's defaults, each with its reason.
+
+naming:
+  FunctionNaming:
+    # Composable functions are named like the things they draw.
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][A-Za-z0-9_]*'
+
+complexity:
+  LongMethod:
+    # Compose screens are long by nature: they describe a whole page.
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
+    # Ports are handed over by constructor, without a dependency-injection framework.
+    constructorThreshold: 13
+    ignoreDefaultParameters: true
+  CyclomaticComplexMethod:
+    ignoreAnnotated: ['Composable']
+    ignoreSimpleWhenEntries: true
+  TooManyFunctions:
+    # Test classes have one function per behaviour.
+    excludes: ['**/test/**']
+    ignoreAnnotatedFunctions: ['Composable']
+    # Adapters implement whole ports; what counts is their public surface.
+    ignorePrivate: true
+
+style:
+  MagicNumber:
+    ignoreAnnotated: ['Composable']
+    ignorePropertyDeclaration: true
+    excludes: ['**/test/**']
+  MaxLineLength:
+    maxLineLength: 120
+    excludes: ['**/test/**']
+  ReturnCount:
+    max: 4
+    excludeGuardClauses: true
+  UnusedPrivateMember:
+    ignoreAnnotated: ['Preview']

@@ -27,7 +27,10 @@ import kotlinx.coroutines.launch
 
 /** Display name, the state of the permissions with a way to fix them, and a word about privacy. */
 @Composable
-fun SettingsScreen(app: AccountabilityBuddyApp, onBack: () -> Unit) {
+fun SettingsScreen(
+    app: AccountabilityBuddyApp,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var displayName by remember { mutableStateOf(app.preferences.displayName) }
@@ -108,7 +111,12 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun PermissionRow(title: String, reason: String, granted: Boolean, onFix: () -> Unit) {
+private fun PermissionRow(
+    title: String,
+    reason: String,
+    granted: Boolean,
+    onFix: () -> Unit,
+) {
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(reason) },

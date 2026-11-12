@@ -55,7 +55,9 @@ enum class PairingRequestResult {
 
 /** The use cases of the Buddies context. */
 @Suppress("TooManyFunctions")
-class BuddiesService(ports: BuddiesPorts) {
+class BuddiesService(
+    ports: BuddiesPorts,
+) {
     private val pairings = ports.pairings
     private val invitations = ports.invitations
     private val outbox = ports.outbox
@@ -83,10 +85,14 @@ class BuddiesService(ports: BuddiesPorts) {
         }
 
     /** Buddy: answers a scanned invitation, appearing under [myName]. */
-    suspend fun requestPairing(code: InvitationCode, myName: String): PairingRequestResult =
+    suspend fun requestPairing(
+        code: InvitationCode,
+        myName: String,
+    ): PairingRequestResult =
         mutex.withLock {
             when {
-                invitations.current()?.pairingId == code.pairingId -> return@withLock PairingRequestResult.OWN_INVITATION
+                invitations.current()?.pairingId == code.pairingId ->
+                    return@withLock PairingRequestResult.OWN_INVITATION
                 pairings.find(code.pairingId) != null -> return@withLock PairingRequestResult.ALREADY_KNOWN
                 !code.isValidAt(clock.instant()) -> return@withLock PairingRequestResult.EXPIRED
             }
@@ -134,25 +140,31 @@ class BuddiesService(ports: BuddiesPorts) {
             forget(id)
         }
 
-    suspend fun rename(id: PairingId, nickname: String?) =
-        mutex.withLock {
-            val pairing = pairings.find(id) ?: return@withLock
-            pairings.update(pairing.copy(nickname = nickname?.trim()?.ifEmpty { null }))
-        }
+    suspend fun rename(
+        id: PairingId,
+        nickname: String?,
+    ) = mutex.withLock {
+        val pairing = pairings.find(id) ?: return@withLock
+        pairings.update(pairing.copy(nickname = nickname?.trim()?.ifEmpty { null }))
+    }
 
     /** Buddy: chooses which notifications about a sender are shown. */
-    suspend fun configure(id: PairingId, instantNotifications: Boolean, daySummary: Boolean) =
-        mutex.withLock {
-            val pairing = pairings.find(id) ?: return@withLock
-            pairings.update(pairing.copy(instantNotifications = instantNotifications, daySummary = daySummary))
-        }
+    suspend fun configure(
+        id: PairingId,
+        instantNotifications: Boolean,
+        daySummary: Boolean,
+    ) = mutex.withLock {
+        val pairing = pairings.find(id) ?: return@withLock
+        pairings.update(pairing.copy(instantNotifications = instantNotifications, daySummary = daySummary))
+    }
 
     // ---- Sending -------------------------------------------------------------------
 
     /** Sender: sends [message] to every active buddy. */
     suspend fun tellBuddies(message: BuddyMessage) =
         mutex.withLock {
-            pairings.all()
+            pairings
+                .all()
                 .filter { it.partnerRole == PartnerRole.BUDDY && it.state == PairingState.ACTIVE }
                 .forEach { send(it.id, message) }
         }
@@ -237,7 +249,10 @@ class BuddiesService(ports: BuddiesPorts) {
     }
 
     /** Messages both roles may send. Returns false if [message] is not one of them. */
-    private suspend fun receivedFromEither(pairing: Pairing, message: BuddyMessage): Boolean {
+    private suspend fun receivedFromEither(
+        pairing: Pairing,
+        message: BuddyMessage,
+    ): Boolean {
         when (message) {
             is BuddyMessage.PairingEnded -> partnerEnded(pairing)
             is BuddyMessage.NameChanged -> pairings.update(pairing.copy(partnerName = message.name))
@@ -251,7 +266,10 @@ class BuddiesService(ports: BuddiesPorts) {
         return true
     }
 
-    private suspend fun receivedFromSender(pairing: Pairing, message: BuddyMessage) {
+    private suspend fun receivedFromSender(
+        pairing: Pairing,
+        message: BuddyMessage,
+    ) {
         if (pairing.state == PairingState.REQUESTED) {
             when (message) {
                 is BuddyMessage.PairingAccepted -> {
@@ -317,7 +335,11 @@ class BuddiesService(ports: BuddiesPorts) {
         pairings.all().filter { it.hasKeys }.forEach { send(it.id, message) }
     }
 
-    private suspend fun send(id: PairingId, message: BuddyMessage, publicKey: ByteArray? = null) {
+    private suspend fun send(
+        id: PairingId,
+        message: BuddyMessage,
+        publicKey: ByteArray? = null,
+    ) {
         val pairing = pairings.find(id) ?: return
         val keys = pairings.keysOf(id) ?: return
         val wire = channel.seal(id, keys, pairing.nextCounter, message, publicKey)

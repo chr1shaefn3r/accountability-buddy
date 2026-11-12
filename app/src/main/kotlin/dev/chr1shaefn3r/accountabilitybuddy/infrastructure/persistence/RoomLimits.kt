@@ -14,7 +14,10 @@ import java.time.Instant
 import java.time.LocalDate
 
 /** Stores limits and the hits of the last days in the local database. */
-class RoomLimits(private val dao: LimitDao) : LimitRepository, HitLog {
+class RoomLimits(
+    private val dao: LimitDao,
+) : LimitRepository,
+    HitLog {
     override fun observeAll(): Flow<List<Limit>> = dao.observeAll().map { rows -> rows.map { it.toLimit() } }
 
     override suspend fun all(): List<Limit> = dao.all().map { it.toLimit() }

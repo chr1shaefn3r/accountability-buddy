@@ -17,18 +17,33 @@ data class LimitHit(
 )
 
 /** The limits that have reached their budget and were not hit before on [day]. */
-fun List<Limit>.newHits(day: Day, usage: Usage, earlierHits: List<LimitHit>, at: Instant): List<LimitHit> {
+fun List<Limit>.newHits(
+    day: Day,
+    usage: Usage,
+    earlierHits: List<LimitHit>,
+    at: Instant,
+): List<LimitHit> {
     val alreadyHit = earlierHits.map { it.limitId }.toSet()
     return filter { it.id !in alreadyHit && usage.of(it) >= it.budget }
         .map { LimitHit(day, it.id, it.name, it.budget, it.apps, at) }
 }
 
 /** The final account of a day: every limit that was hit, with its total usage. */
-data class DayClosed(val day: Day, val entries: List<Entry>) {
-    data class Entry(val limitName: String, val budget: Duration, val used: Duration)
+data class DayClosed(
+    val day: Day,
+    val entries: List<Entry>,
+) {
+    data class Entry(
+        val limitName: String,
+        val budget: Duration,
+        val used: Duration,
+    )
 
     companion object {
-        fun of(day: Day, hits: List<LimitHit>, usage: Usage): DayClosed =
-            DayClosed(day, hits.map { Entry(it.limitName, it.budget, maxOf(usage.of(it.apps), it.budget)) })
+        fun of(
+            day: Day,
+            hits: List<LimitHit>,
+            usage: Usage,
+        ): DayClosed = DayClosed(day, hits.map { Entry(it.limitName, it.budget, maxOf(usage.of(it.apps), it.budget)) })
     }
 }

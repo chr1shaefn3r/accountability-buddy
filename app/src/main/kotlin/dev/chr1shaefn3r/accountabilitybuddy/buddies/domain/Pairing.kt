@@ -5,7 +5,9 @@ import java.time.Instant
 
 /** Identifies a pairing on both phones. Sixteen random bytes, written as hex. */
 @JvmInline
-value class PairingId(val hex: String) {
+value class PairingId(
+    val hex: String,
+) {
     init {
         require(hex.length == SIZE * 2 && hex.all { it in "0123456789abcdef" }) { "Not a pairing id" }
     }
@@ -22,7 +24,9 @@ value class PairingId(val hex: String) {
 
 /** Where push messages for a phone are sent to (its Firebase installation ID). */
 @JvmInline
-value class PushAddress(val id: String)
+value class PushAddress(
+    val id: String,
+)
 
 /** What the other person in a pairing is to the owner of this phone. */
 enum class PartnerRole {

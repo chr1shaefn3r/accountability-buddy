@@ -152,7 +152,9 @@ fun MyLimitsScreen(
         SetupStep.BATTERY ->
             ConfirmDialog(
                 title = "Keep watching in the background",
-                text = "So that a reached limit is noticed on time, allow Accountability-Buddy to run without battery restrictions.",
+                text =
+                    "So that a reached limit is noticed on time, allow Accountability-Buddy to run " +
+                        "without battery restrictions.",
                 confirm = "Allow",
                 onConfirm = { context.requestBatteryExemption() },
                 dismiss = "Not now",
@@ -163,7 +165,10 @@ fun MyLimitsScreen(
 }
 
 @Composable
-private fun BuddiesRow(buddies: List<Pairing>, onClick: () -> Unit) {
+private fun BuddiesRow(
+    buddies: List<Pairing>,
+    onClick: () -> Unit,
+) {
     val waiting = buddies.firstOrNull { it.state == PairingState.AWAITING_CONFIRMATION }
     val headline =
         when (buddies.size) {
@@ -199,7 +204,10 @@ private fun ProblemBanner(problem: TrackingProblem) {
                 "Notifications are switched off for this app." to { context.openNotificationSettings() }
         }
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-        Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Icon(Icons.Default.Warning, contentDescription = null)
             Text(text, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
             TextButton(onClick = fix) { Text("Fix") }
@@ -208,7 +216,10 @@ private fun ProblemBanner(problem: TrackingProblem) {
 }
 
 @Composable
-private fun LimitCard(status: LimitStatus, onClick: () -> Unit) {
+private fun LimitCard(
+    status: LimitStatus,
+    onClick: () -> Unit,
+) {
     val limit = status.limit
     val fraction = (status.used.seconds.toFloat() / limit.budget.seconds).coerceIn(0f, 1f)
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {

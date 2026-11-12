@@ -19,11 +19,18 @@ import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Shows Android notifications, each kind on its own channel. */
-class Notifications(private val context: Context) : BuddyNotifier, SenderNotifier {
+class Notifications(
+    private val context: Context,
+) : BuddyNotifier,
+    SenderNotifier {
     private val manager = context.getSystemService(NotificationManager::class.java)
     private val nextId = AtomicInteger((System.currentTimeMillis() % FIRST_ID_RANGE).toInt() + TRACKING_ID + 1)
 
-    private enum class Channel(val id: String, val title: String, val importance: Int) {
+    private enum class Channel(
+        val id: String,
+        val title: String,
+        val importance: Int,
+    ) {
         MY_LIMITS("my-limits", "My limits reached", NotificationManager.IMPORTANCE_DEFAULT),
         LIMIT_REACHED("limit-reached", "Limit reached by someone I support", NotificationManager.IMPORTANCE_HIGH),
         CHANGES("changes", "Changes by someone I support", NotificationManager.IMPORTANCE_DEFAULT),
@@ -46,20 +53,29 @@ class Notifications(private val context: Context) : BuddyNotifier, SenderNotifie
     override fun pairingAccepted(pairing: Pairing) =
         show(Channel.PAIRING, pairing.displayName, "Pairing confirmed. You are now ${pairing.displayName}'s buddy.")
 
-    override fun pairingEnded(pairing: Pairing) =
-        show(Channel.PAIRING, pairing.displayName, "The pairing has ended.")
+    override fun pairingEnded(pairing: Pairing) = show(Channel.PAIRING, pairing.displayName, "The pairing has ended.")
 
-    override fun limitHit(pairing: Pairing, message: BuddyMessage.LimitHit) =
-        show(Channel.LIMIT_REACHED, pairing.displayName, message.asText())
+    override fun limitHit(
+        pairing: Pairing,
+        message: BuddyMessage.LimitHit,
+    ) = show(Channel.LIMIT_REACHED, pairing.displayName, message.asText())
 
-    override fun setupWeakened(pairing: Pairing, message: BuddyMessage.SetupWeakened) =
-        show(Channel.CHANGES, pairing.displayName, message.asText())
+    override fun setupWeakened(
+        pairing: Pairing,
+        message: BuddyMessage.SetupWeakened,
+    ) = show(Channel.CHANGES, pairing.displayName, message.asText())
 
-    override fun daySummary(pairing: Pairing, message: BuddyMessage.DayClosed) =
-        show(Channel.DAY_SUMMARY, "${pairing.displayName}: ${message.day.asText()}", message.asText())
+    override fun daySummary(
+        pairing: Pairing,
+        message: BuddyMessage.DayClosed,
+    ) = show(Channel.DAY_SUMMARY, "${pairing.displayName}: ${message.day.asText()}", message.asText())
 
     override fun silent(pairing: Pairing) {
-        val since = pairing.lastSignOfLife.atZone(ZoneId.systemDefault()).toLocalDate().asText()
+        val since =
+            pairing.lastSignOfLife
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+                .asText()
         show(Channel.SILENCE, pairing.displayName, "No sign of life since $since.")
     }
 
@@ -69,12 +85,21 @@ class Notifications(private val context: Context) : BuddyNotifier, SenderNotifie
             .setOngoing(true)
             .build()
 
-    private fun show(channel: Channel, title: String, text: String) {
+    private fun show(
+        channel: Channel,
+        title: String,
+        text: String,
+    ) {
         manager.notify(nextId.incrementAndGet(), builder(channel, title, text).setAutoCancel(true).build())
     }
 
-    private fun builder(channel: Channel, title: String, text: String): Notification.Builder =
-        Notification.Builder(context, channel.id)
+    private fun builder(
+        channel: Channel,
+        title: String,
+        text: String,
+    ): Notification.Builder =
+        Notification
+            .Builder(context, channel.id)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text.lineSequence().first())

@@ -5,7 +5,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /** A calendar day in the sender phone's local time zone, from 00:00 to 24:00. */
-data class Day(val date: LocalDate) : Comparable<Day> {
+data class Day(
+    val date: LocalDate,
+) : Comparable<Day> {
     fun start(zone: ZoneId): Instant = date.atStartOfDay(zone).toInstant()
 
     fun end(zone: ZoneId): Instant = date.plusDays(1).atStartOfDay(zone).toInstant()
@@ -19,6 +21,9 @@ data class Day(val date: LocalDate) : Comparable<Day> {
     override fun compareTo(other: Day): Int = date.compareTo(other.date)
 
     companion object {
-        fun of(instant: Instant, zone: ZoneId): Day = Day(instant.atZone(zone).toLocalDate())
+        fun of(
+            instant: Instant,
+            zone: ZoneId,
+        ): Day = Day(instant.atZone(zone).toLocalDate())
     }
 }

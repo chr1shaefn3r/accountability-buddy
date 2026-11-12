@@ -66,7 +66,11 @@ private const val WHAT_A_BUDDY_SEES =
 
 /** The sender's buddies: confirm requests, rename, remove, and invite new ones. */
 @Composable
-fun MyBuddiesScreen(app: AccountabilityBuddyApp, onInvite: () -> Unit, onBack: () -> Unit) {
+fun MyBuddiesScreen(
+    app: AccountabilityBuddyApp,
+    onInvite: () -> Unit,
+    onBack: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val pairings by app.pairings.observeAll().collectAsStateWithLifecycle(initialValue = null)
     val buddies = pairings?.filter { it.partnerRole == PartnerRole.BUDDY }
@@ -151,7 +155,10 @@ fun MyBuddiesScreen(app: AccountabilityBuddyApp, onInvite: () -> Unit, onBack: (
 
 /** Shows the QR code a future buddy scans, and asks for confirmation once they did. */
 @Composable
-fun InviteScreen(app: AccountabilityBuddyApp, onBack: () -> Unit) {
+fun InviteScreen(
+    app: AccountabilityBuddyApp,
+    onBack: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     var attempt by remember { mutableIntStateOf(0) }
     var code by remember { mutableStateOf<InvitationCode?>(null) }
@@ -177,7 +184,12 @@ fun InviteScreen(app: AccountabilityBuddyApp, onBack: () -> Unit) {
 
     Scaffold(topBar = { PageTopBar("Add buddy", onBack) }) { padding ->
         Column(
-            modifier = Modifier.padding(padding).padding(24.dp).fillMaxSize().verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .padding(padding)
+                    .padding(24.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -237,6 +249,8 @@ fun InviteScreen(app: AccountabilityBuddyApp, onBack: () -> Unit) {
 }
 
 private const val TICK_MILLIS = 1000L
+private const val QR_DARK = android.graphics.Color.BLACK
+private const val QR_LIGHT = android.graphics.Color.WHITE
 
 /** A QR code, always dark on white with a quiet zone so that it scans in any theme. */
 @Composable
@@ -246,7 +260,7 @@ private fun QrCode(content: String) {
             val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, 0, 0, mapOf(EncodeHintType.MARGIN to 2))
             val pixels =
                 IntArray(matrix.width * matrix.height) {
-                    if (matrix[it % matrix.width, it / matrix.width]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                    if (matrix[it % matrix.width, it / matrix.width]) QR_DARK else QR_LIGHT
                 }
             Bitmap.createBitmap(pixels, matrix.width, matrix.height, Bitmap.Config.ARGB_8888).asImageBitmap()
         }

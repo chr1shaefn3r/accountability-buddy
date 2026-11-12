@@ -6,23 +6,37 @@ import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class ForegroundIntervalsTest {
+class UsageEventTest {
     private val start = Instant.parse("2026-11-12T08:00:00Z")
     private val instagram = AppId("instagram")
     private val tiktok = AppId("tiktok")
 
     private fun minute(n: Long): Instant = start.plusSeconds(n * 60)
 
-    private fun resumed(app: AppId, at: Long, screen: String = "main") = UsageEvent.Resumed(app, screen, minute(at))
+    private fun resumed(
+        app: AppId,
+        at: Long,
+        screen: String = "main",
+    ) = UsageEvent.Resumed(app, screen, minute(at))
 
-    private fun paused(app: AppId, at: Long, screen: String = "main") = UsageEvent.Paused(app, screen, minute(at))
+    private fun paused(
+        app: AppId,
+        at: Long,
+        screen: String = "main",
+    ) = UsageEvent.Paused(app, screen, minute(at))
 
     private fun screenOff(at: Long) = UsageEvent.ScreenOff(minute(at))
 
-    private fun interval(app: AppId, from: Long, to: Long) = ForegroundInterval(app, minute(from), minute(to))
+    private fun interval(
+        app: AppId,
+        from: Long,
+        to: Long,
+    ) = ForegroundInterval(app, minute(from), minute(to))
 
-    private fun intervals(vararg events: UsageEvent, until: Long = 60) =
-        foregroundIntervals(events.toList(), start, minute(until))
+    private fun intervals(
+        vararg events: UsageEvent,
+        until: Long = 60,
+    ) = foregroundIntervals(events.toList(), start, minute(until))
 
     @Test
     fun `an app is in the foreground from resume to pause`() {

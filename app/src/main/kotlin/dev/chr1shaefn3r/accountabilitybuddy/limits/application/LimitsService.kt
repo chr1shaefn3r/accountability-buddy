@@ -20,7 +20,11 @@ import java.time.Duration
 import java.time.Instant
 
 /** A limit together with how much of it is used up today. */
-data class LimitStatus(val limit: Limit, val used: Duration, val hit: Boolean)
+data class LimitStatus(
+    val limit: Limit,
+    val used: Duration,
+    val hit: Boolean,
+)
 
 /** The use cases of the Limits context. */
 class LimitsService(
@@ -104,7 +108,10 @@ class LimitsService(
 
     private suspend fun checkToday() = detectHits(currentDay(), clock.instant())
 
-    private suspend fun detectHits(day: Day, at: Instant) {
+    private suspend fun detectHits(
+        day: Day,
+        at: Instant,
+    ) {
         val all = limits.all()
         if (all.isEmpty()) return
         val usage = usageOn(day) ?: return

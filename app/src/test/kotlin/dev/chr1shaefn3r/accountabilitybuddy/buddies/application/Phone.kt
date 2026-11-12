@@ -31,7 +31,10 @@ class Network {
     val traffic = mutableListOf<Pair<PushAddress, ByteArray>>()
     var online = true
 
-    fun register(address: PushAddress, phone: Phone) {
+    fun register(
+        address: PushAddress,
+        phone: Phone,
+    ) {
         phones[address] = phone
     }
 
@@ -39,7 +42,10 @@ class Network {
         phones.remove(address)
     }
 
-    suspend fun send(to: PushAddress, wire: ByteArray): Relay.Outcome {
+    suspend fun send(
+        to: PushAddress,
+        wire: ByteArray,
+    ): Relay.Outcome {
         if (!online) return Relay.Outcome.TRY_LATER
         val phone = phones[to] ?: return Relay.Outcome.ADDRESS_GONE
         traffic += to to wire
@@ -60,7 +66,11 @@ class Network {
 }
 
 /** One phone with the Buddies context running on in-memory adapters. */
-class Phone(name: String, private val network: Network, val clock: MutableClock) {
+class Phone(
+    name: String,
+    private val network: Network,
+    val clock: MutableClock,
+) {
     val pairings = InMemoryPairings()
     val invitations = InMemoryInvitations()
     val outbox = InMemoryOutbox()
@@ -115,7 +125,10 @@ class InMemoryPairings : PairingRepository {
 
     override suspend fun find(id: PairingId): Pairing? = pairings.value.find { it.id == id }
 
-    override suspend fun create(pairing: Pairing, keys: SessionKeys) {
+    override suspend fun create(
+        pairing: Pairing,
+        keys: SessionKeys,
+    ) {
         check(find(pairing.id) == null)
         pairings.value += pairing
         this.keys[pairing.id] = keys
@@ -169,7 +182,10 @@ class InMemoryOutbox : Outbox {
 class InMemoryReceivedLog : ReceivedLog {
     private val seen = mutableSetOf<Pair<PairingId, Long>>()
 
-    override suspend fun isNew(pairingId: PairingId, counter: Long): Boolean = seen.add(pairingId to counter)
+    override suspend fun isNew(
+        pairingId: PairingId,
+        counter: Long,
+    ): Boolean = seen.add(pairingId to counter)
 
     override suspend fun forget(pairingId: PairingId) {
         seen.removeAll { it.first == pairingId }
@@ -200,7 +216,9 @@ class InMemoryHistory : History {
     }
 }
 
-class InMemoryProfile(override var displayName: String) : Profile {
+class InMemoryProfile(
+    override var displayName: String,
+) : Profile {
     override var address: PushAddress? = null
 }
 
@@ -220,15 +238,24 @@ class RecordingNotifier : BuddyNotifier {
         shown += "pairingEnded ${pairing.displayName}"
     }
 
-    override fun limitHit(pairing: Pairing, message: BuddyMessage.LimitHit) {
+    override fun limitHit(
+        pairing: Pairing,
+        message: BuddyMessage.LimitHit,
+    ) {
         shown += "limitHit ${pairing.displayName} ${message.limitName}"
     }
 
-    override fun setupWeakened(pairing: Pairing, message: BuddyMessage.SetupWeakened) {
+    override fun setupWeakened(
+        pairing: Pairing,
+        message: BuddyMessage.SetupWeakened,
+    ) {
         shown += "setupWeakened ${pairing.displayName} ${message::class.simpleName}"
     }
 
-    override fun daySummary(pairing: Pairing, message: BuddyMessage.DayClosed) {
+    override fun daySummary(
+        pairing: Pairing,
+        message: BuddyMessage.DayClosed,
+    ) {
         shown += "daySummary ${pairing.displayName} ${message.entries.joinToString { it.limitName }}"
     }
 

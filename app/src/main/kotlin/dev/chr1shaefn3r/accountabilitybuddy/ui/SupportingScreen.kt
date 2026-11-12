@@ -3,11 +3,11 @@ package dev.chr1shaefn3r.accountabilitybuddy.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
@@ -31,7 +31,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -73,12 +72,13 @@ fun SupportingScreen(
     val say: (String) -> Unit = { scope.launch { snackbar.showSnackbar(it) } }
     val scan = {
         val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
-        GmsBarcodeScanning.getClient(context, options).startScan()
+        GmsBarcodeScanning
+            .getClient(context, options)
+            .startScan()
             .addOnSuccessListener { barcode ->
                 val code = barcode.rawValue?.let(InvitationCode::parse)
                 if (code == null) say("This is not an Accountability-Buddy code.") else scanned = code
-            }
-            .addOnFailureListener { say("The scanner could not be started. Check your internet connection.") }
+            }.addOnFailureListener { say("The scanner could not be started. Check your internet connection.") }
         Unit
     }
 
@@ -144,7 +144,8 @@ fun SupportingScreen(
                     val message =
                         try {
                             when (app.buddies.requestPairing(code, name)) {
-                                PairingRequestResult.REQUESTED -> "Request sent. Waiting for ${code.senderName} to confirm."
+                                PairingRequestResult.REQUESTED ->
+                                    "Request sent. Waiting for ${code.senderName} to confirm."
                                 PairingRequestResult.EXPIRED -> "This code has expired. Ask for a new one."
                                 PairingRequestResult.ALREADY_KNOWN -> "You have already scanned this code."
                                 PairingRequestResult.OWN_INVITATION -> "This is your own code."
@@ -164,7 +165,11 @@ private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
 
 /** Everything about one sender: notification settings, history, rename and stop supporting. */
 @Composable
-fun SenderDetailScreen(app: AccountabilityBuddyApp, pairingId: PairingId, onBack: () -> Unit) {
+fun SenderDetailScreen(
+    app: AccountabilityBuddyApp,
+    pairingId: PairingId,
+    onBack: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val pairings by app.pairings.observeAll().collectAsStateWithLifecycle(initialValue = null)
     val sender = pairings?.firstOrNull { it.id == pairingId }
@@ -204,7 +209,10 @@ fun SenderDetailScreen(app: AccountabilityBuddyApp, pairingId: PairingId, onBack
                 }
                 items(entries) { entry ->
                     if (entry.message is BuddyMessage.DayClosed) {
-                        ListItem(headlineContent = { Text("Day summary") }, supportingContent = { Text(entry.message.asText()) })
+                        ListItem(
+                            headlineContent = { Text("Day summary") },
+                            supportingContent = { Text(entry.message.asText()) },
+                        )
                     } else {
                         ListItem(
                             headlineContent = { Text(entry.message.asText()) },
@@ -267,7 +275,10 @@ private fun HistoryEntry.dayIn(zone: java.time.ZoneId): LocalDate =
     (message as? BuddyMessage.DayClosed)?.day ?: at.atZone(zone).toLocalDate()
 
 @Composable
-private fun SenderSettings(app: AccountabilityBuddyApp, sender: Pairing) {
+private fun SenderSettings(
+    app: AccountabilityBuddyApp,
+    sender: Pairing,
+) {
     val scope = rememberCoroutineScope()
     Column {
         Text(
@@ -300,7 +311,12 @@ private fun senderStatusLine(sender: Pairing): String =
     }
 
 @Composable
-private fun SwitchRow(title: String, text: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun SwitchRow(
+    title: String,
+    text: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(text) },

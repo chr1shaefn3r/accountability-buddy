@@ -28,14 +28,21 @@ interface Vault {
 }
 
 /** Stores pairings, their keys and the open invitation in the local database. */
-class RoomPairings(private val dao: PairingDao, private val vault: Vault) : PairingRepository, InvitationStore {
+class RoomPairings(
+    private val dao: PairingDao,
+    private val vault: Vault,
+) : PairingRepository,
+    InvitationStore {
     override fun observeAll(): Flow<List<Pairing>> = dao.observeAll().map { rows -> rows.map { it.toPairing() } }
 
     override suspend fun all(): List<Pairing> = dao.all().map { it.toPairing() }
 
     override suspend fun find(id: PairingId): Pairing? = dao.find(id.hex)?.toPairing()
 
-    override suspend fun create(pairing: Pairing, keys: SessionKeys) {
+    override suspend fun create(
+        pairing: Pairing,
+        keys: SessionKeys,
+    ) {
         dao.insert(pairing.toRow())
         dao.saveKeys(PairingKeysRow(pairing.id.hex, vault.protect(keys.toBytes())))
     }
@@ -112,7 +119,9 @@ class RoomPairings(private val dao: PairingDao, private val vault: Vault) : Pair
 }
 
 /** Stores the letters that still have to be sent in the local database. */
-class RoomOutbox(private val dao: MessageDao) : Outbox {
+class RoomOutbox(
+    private val dao: MessageDao,
+) : Outbox {
     override suspend fun add(letter: Letter) =
         dao.enqueue(
             OutboxRow(0, letter.pairingId.hex, letter.address.id, letter.wire, letter.createdAt.toEpochMilli()),
@@ -126,13 +135,16 @@ class RoomOutbox(private val dao: MessageDao) : Outbox {
     override suspend fun remove(letter: Letter) = dao.removeFromOutbox(letter.id)
 
     override suspend fun removeOlderThan(instant: Instant) = dao.removeFromOutboxBefore(instant.toEpochMilli())
-
 }
 
 /** Remembers received messages in the local database. */
-class RoomReceivedLog(private val dao: MessageDao) : ReceivedLog {
-    override suspend fun isNew(pairingId: PairingId, counter: Long): Boolean =
-        dao.recordReceived(ReceivedRow(pairingId.hex, counter)) != ALREADY_RECORDED
+class RoomReceivedLog(
+    private val dao: MessageDao,
+) : ReceivedLog {
+    override suspend fun isNew(
+        pairingId: PairingId,
+        counter: Long,
+    ): Boolean = dao.recordReceived(ReceivedRow(pairingId.hex, counter)) != ALREADY_RECORDED
 
     override suspend fun forget(pairingId: PairingId) = dao.forgetReceived(pairingId.hex)
 
@@ -142,7 +154,9 @@ class RoomReceivedLog(private val dao: MessageDao) : ReceivedLog {
 }
 
 /** Keeps what senders reported in the local database. */
-class RoomHistory(private val dao: MessageDao) : History {
+class RoomHistory(
+    private val dao: MessageDao,
+) : History {
     override fun observe(pairingId: PairingId): Flow<List<HistoryEntry>> =
         dao.observeHistory(pairingId.hex).map { rows -> rows.mapNotNull { it.toEntry() } }
 

@@ -16,7 +16,11 @@ class UsageTest {
 
     private fun at(time: String): Instant = LocalDateTime.parse(time).atZone(berlin).toInstant()
 
-    private fun interval(app: AppId, from: String, to: String) = ForegroundInterval(app, at(from), at(to))
+    private fun interval(
+        app: AppId,
+        from: String,
+        to: String,
+    ) = ForegroundInterval(app, at(from), at(to))
 
     @Test
     fun `usage of several apps is added up`() {

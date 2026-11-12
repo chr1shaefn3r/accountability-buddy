@@ -54,8 +54,10 @@ class FakeUsageSource : UsageSource {
     val intervals = mutableListOf<ForegroundInterval>()
     var accessGranted = true
 
-    override fun foregroundIntervals(from: Instant, to: Instant): List<ForegroundInterval>? =
-        if (accessGranted) intervals.filter { it.start < to && it.end > from } else null
+    override fun foregroundIntervals(
+        from: Instant,
+        to: Instant,
+    ): List<ForegroundInterval>? = if (accessGranted) intervals.filter { it.start < to && it.end > from } else null
 }
 
 class FakeHealth : TrackingHealth {

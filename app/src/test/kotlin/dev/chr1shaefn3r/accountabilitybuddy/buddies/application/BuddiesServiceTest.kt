@@ -24,17 +24,32 @@ class BuddiesServiceTest {
 
     private val instagramHit = BuddyMessage.LimitHit("Instagram", 60, 1_800_000_000)
     private val quietDay = BuddyMessage.DayClosed("2026-11-12", emptyList())
-    private val badDay = BuddyMessage.DayClosed("2026-11-12", listOf(BuddyMessage.DayClosed.Entry("Instagram", 60, 105)))
+    private val badDay =
+        BuddyMessage.DayClosed(
+            "2026-11-12",
+            listOf(BuddyMessage.DayClosed.Entry("Instagram", 60, 105)),
+        )
 
     /** The buddy scans the sender's code as a real phone would: from its text form. */
-    private suspend fun Phone.scan(sender: Phone, asName: String = profile.displayName): PairingRequestResult {
+    private suspend fun Phone.scan(
+        sender: Phone,
+        asName: String = profile.displayName,
+    ): PairingRequestResult {
         val code = InvitationCode.parse(sender.buddies.invite().encode())!!
         return buddies.requestPairing(code, asName).also { network.settle() }
     }
 
-    private suspend fun pair(sender: Phone, buddy: Phone) {
+    private suspend fun pair(
+        sender: Phone,
+        buddy: Phone,
+    ) {
         buddy.scan(sender)
-        sender.buddies.confirm(sender.pairings.all().last().id)
+        sender.buddies.confirm(
+            sender.pairings
+                .all()
+                .last()
+                .id,
+        )
         network.settle()
         sender.notifier.shown.clear()
         buddy.notifier.shown.clear()
@@ -152,7 +167,14 @@ class BuddiesServiceTest {
         runTest {
             val real = alex.buddies.invite()
             val guessed =
-                InvitationCode(real.pairingId, real.publicKey, ByteArray(16), real.senderAddress, "Alex", real.expiresAt)
+                InvitationCode(
+                    real.pairingId,
+                    real.publicKey,
+                    ByteArray(16),
+                    real.senderAddress,
+                    "Alex",
+                    real.expiresAt,
+                )
 
             sam.buddies.requestPairing(guessed, "Mallory")
             network.settle()
@@ -527,7 +549,13 @@ class BuddiesServiceTest {
             alex.tell(badDay)
             alex.tell(quietDay)
 
-            assertEquals(1, network.traffic.map { it.second.size }.toSet().size)
+            assertEquals(
+                1,
+                network.traffic
+                    .map { it.second.size }
+                    .toSet()
+                    .size,
+            )
             assertTrue(network.traffic.none { "Instagram" in it.second.decodeToString(throwOnInvalidSequence = false) })
             assertTrue(network.traffic.none { "Sam" in it.second.decodeToString(throwOnInvalidSequence = false) })
         }

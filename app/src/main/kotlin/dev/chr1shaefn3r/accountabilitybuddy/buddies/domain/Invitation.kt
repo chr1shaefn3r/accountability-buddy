@@ -21,14 +21,19 @@ class Invitation(
     fun secret(): InvitationSecret = InvitationSecret(pairingId, secret)
 
     /** What the buddy needs to know to answer this invitation. */
-    fun code(senderAddress: PushAddress, senderName: String): InvitationCode =
-        InvitationCode(pairingId, publicKey, secret, senderAddress, senderName, expiresAt)
+    fun code(
+        senderAddress: PushAddress,
+        senderName: String,
+    ): InvitationCode = InvitationCode(pairingId, publicKey, secret, senderAddress, senderName, expiresAt)
 
     companion object {
         val VALIDITY: Duration = Duration.ofMinutes(10)
         const val SECRET_SIZE = 16
 
-        fun create(crypto: Cryptography, now: Instant): Invitation {
+        fun create(
+            crypto: Cryptography,
+            now: Instant,
+        ): Invitation {
             val keyPair = crypto.newKeyPair()
             return Invitation(
                 pairingId = PairingId.of(crypto.randomBytes(PairingId.SIZE)),

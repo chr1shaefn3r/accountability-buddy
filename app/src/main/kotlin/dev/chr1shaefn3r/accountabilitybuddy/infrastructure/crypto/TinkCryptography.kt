@@ -17,16 +17,29 @@ class TinkCryptography : Cryptography {
         return KeyPair(privateKey, X25519.publicFromPrivate(privateKey))
     }
 
-    override fun sharedSecret(privateKey: ByteArray, publicKey: ByteArray): ByteArray =
-        X25519.computeSharedSecret(privateKey, publicKey)
+    override fun sharedSecret(
+        privateKey: ByteArray,
+        publicKey: ByteArray,
+    ): ByteArray = X25519.computeSharedSecret(privateKey, publicKey)
 
-    override fun deriveKey(inputKey: ByteArray, salt: ByteArray, info: ByteArray, size: Int): ByteArray =
-        Hkdf.computeHkdf("HMACSHA256", inputKey, salt, info, size)
+    override fun deriveKey(
+        inputKey: ByteArray,
+        salt: ByteArray,
+        info: ByteArray,
+        size: Int,
+    ): ByteArray = Hkdf.computeHkdf("HMACSHA256", inputKey, salt, info, size)
 
-    override fun encrypt(key: ByteArray, plaintext: ByteArray, associatedData: ByteArray): ByteArray =
-        AesGcmJce(key).encrypt(plaintext, associatedData)
+    override fun encrypt(
+        key: ByteArray,
+        plaintext: ByteArray,
+        associatedData: ByteArray,
+    ): ByteArray = AesGcmJce(key).encrypt(plaintext, associatedData)
 
-    override fun decrypt(key: ByteArray, ciphertext: ByteArray, associatedData: ByteArray): ByteArray? =
+    override fun decrypt(
+        key: ByteArray,
+        ciphertext: ByteArray,
+        associatedData: ByteArray,
+    ): ByteArray? =
         try {
             AesGcmJce(key).decrypt(ciphertext, associatedData)
         } catch (_: GeneralSecurityException) {

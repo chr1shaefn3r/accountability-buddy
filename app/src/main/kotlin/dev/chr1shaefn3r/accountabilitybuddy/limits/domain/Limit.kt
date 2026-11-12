@@ -4,10 +4,14 @@ import java.time.Duration
 
 /** An installed app, identified by its Android package name. */
 @JvmInline
-value class AppId(val packageName: String)
+value class AppId(
+    val packageName: String,
+)
 
 @JvmInline
-value class LimitId(val value: String)
+value class LimitId(
+    val value: String,
+)
 
 /** A daily time budget shared by one or more apps. */
 data class Limit(
@@ -42,13 +46,25 @@ data class Limit(
 
 /** A change that makes the sender's setup less strict. Buddies are told about each one. */
 sealed interface Weakening {
-    data class BudgetRaised(val limitName: String, val from: Duration, val to: Duration) : Weakening
+    data class BudgetRaised(
+        val limitName: String,
+        val from: Duration,
+        val to: Duration,
+    ) : Weakening
 
-    data class AppsRemoved(val limitName: String, val apps: Set<AppId>) : Weakening
+    data class AppsRemoved(
+        val limitName: String,
+        val apps: Set<AppId>,
+    ) : Weakening
 
-    data class LimitDeleted(val limitName: String, val budget: Duration) : Weakening
+    data class LimitDeleted(
+        val limitName: String,
+        val budget: Duration,
+    ) : Weakening
 
-    data class TrackingLost(val problem: TrackingProblem) : Weakening
+    data class TrackingLost(
+        val problem: TrackingProblem,
+    ) : Weakening
 }
 
 /** A reason why usage can no longer be tracked or reported on this phone. */

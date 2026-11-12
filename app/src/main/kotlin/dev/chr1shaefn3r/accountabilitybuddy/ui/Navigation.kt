@@ -30,7 +30,9 @@ private object Onboarding
 private object Home
 
 @Serializable
-private data class EditLimit(val limitId: String? = null)
+private data class EditLimit(
+    val limitId: String? = null,
+)
 
 @Serializable
 private object MyBuddies
@@ -39,7 +41,9 @@ private object MyBuddies
 private object Invite
 
 @Serializable
-private data class SenderDetail(val pairingId: String)
+private data class SenderDetail(
+    val pairingId: String,
+)
 
 @Serializable
 private object Settings

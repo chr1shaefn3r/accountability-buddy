@@ -33,6 +33,10 @@ android {
     lint {
         warningsAsErrors = true
         abortOnError = true
+        // The app targets Android 16 on purpose (see SPEC.md, section 8.1).
+        disable += "OldTargetApi"
+        // Push is addressed by Firebase installation ID; the token callback this check asks for is deprecated.
+        disable += "MissingFirebaseInstanceTokenRefresh"
     }
 }
 

@@ -19,7 +19,11 @@ import java.time.Duration
 import java.time.Instant
 
 /** Reads usage, permissions and installed apps from the Android system. */
-class PhoneUsage(private val context: Context) : UsageSource, TrackingHealth, AppCatalog {
+class PhoneUsage(
+    private val context: Context,
+) : UsageSource,
+    TrackingHealth,
+    AppCatalog {
     private val usageStats = context.getSystemService(UsageStatsManager::class.java)
     private val appOps = context.getSystemService(AppOpsManager::class.java)
     private val notifications = context.getSystemService(NotificationManager::class.java)
@@ -33,7 +37,10 @@ class PhoneUsage(private val context: Context) : UsageSource, TrackingHealth, Ap
                 context.packageName,
             ) == AppOpsManager.MODE_ALLOWED
 
-    override fun foregroundIntervals(from: Instant, to: Instant): List<ForegroundInterval>? {
+    override fun foregroundIntervals(
+        from: Instant,
+        to: Instant,
+    ): List<ForegroundInterval>? {
         if (!hasUsageAccess) return null
         val queryFrom = from - LOOK_BACK
         val events = usageStats.queryEvents(queryFrom.toEpochMilli(), to.toEpochMilli())
@@ -69,7 +76,8 @@ class PhoneUsage(private val context: Context) : UsageSource, TrackingHealth, Ap
 
     override fun launchableApps(): List<InstalledApp> {
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        return packages.queryIntentActivities(launcher, 0)
+        return packages
+            .queryIntentActivities(launcher, 0)
             .map { InstalledApp(AppId(it.activityInfo.packageName), it.loadLabel(packages).toString()) }
             .filter { it.id.packageName != context.packageName }
             .distinctBy { it.id }

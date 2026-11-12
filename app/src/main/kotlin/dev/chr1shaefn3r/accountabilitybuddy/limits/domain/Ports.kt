@@ -27,7 +27,10 @@ interface HitLog {
 /** The phone's record of which app was in the foreground when. */
 interface UsageSource {
     /** Foreground intervals overlapping the given time span, or null if usage access is missing. */
-    fun foregroundIntervals(from: Instant, to: Instant): List<ForegroundInterval>?
+    fun foregroundIntervals(
+        from: Instant,
+        to: Instant,
+    ): List<ForegroundInterval>?
 }
 
 /** What the phone currently allows this app to do. */
@@ -64,4 +67,7 @@ interface AppCatalog {
     fun launchableApps(): List<InstalledApp>
 }
 
-data class InstalledApp(val id: AppId, val label: String)
+data class InstalledApp(
+    val id: AppId,
+    val label: String,
+)
