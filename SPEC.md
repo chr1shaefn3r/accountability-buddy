@@ -1,6 +1,7 @@
 # Accountability-Buddy — Specification
 
-Status: **DRAFT — awaiting approval.** No code is written until this spec is approved.
+Status: **Approved and implemented.** A change in behaviour updates this document in the
+same commit.
 
 ## 1. Purpose
 
@@ -33,7 +34,7 @@ hold each other accountable with the same app.
 
 ### 3.1 Limits
 
-- A limit has a **name**, a **daily duration** (1 minute to 24 hours, in minutes) and a
+- A limit has a **name**, a **daily duration** (1 minute to 24 hours; the picker in the app goes up to 23h 59m) and a
   set of **one or more apps**.
 - A limit with one app is a per-app limit ("Instagram, 1h"). A limit with several apps
   is a shared budget ("Social Media, 1h" across Instagram, TikTok, ...).
@@ -149,9 +150,9 @@ same network.
 ### 5.3 QR code content
 
 The QR code holds a version number, the sender's public key for this pairing, the
-sender's push address (FCM registration token), a one-time pairing secret and the
-sender's display name. It is shown only on the sender's screen and never sent to the
-server.
+sender's push address (the phone's Firebase installation ID), a one-time pairing secret,
+the time the code expires and the sender's display name. It is shown only on the
+sender's screen and never sent to the server.
 
 ### 5.4 Unpairing
 
@@ -180,14 +181,14 @@ The server is a stateless relay. It has **no database** and stores nothing.
 
 | The server sees | The server never sees |
 |---|---|
-| The recipient's FCM token, for the duration of one request | Names, app names, limits, groups, usage |
+| The recipient's push address (Firebase installation ID), for the duration of one request | Names, app names, limits, groups, usage |
 | An opaque encrypted blob of fixed size | Message type or content |
 | Time and IP address of the request (as any web server does) | Who is paired with whom as a stored relation |
 
 Request bodies are not logged.
 
 Google's Firebase Cloud Messaging delivers the push. Google sees the same as the
-server: a token, an encrypted blob and a time. This is the accepted price for instant,
+server: a push address, an encrypted blob and a time. This is the accepted price for instant,
 battery-friendly delivery.
 
 ### 6.3 Known limits of the trust model
@@ -195,7 +196,7 @@ battery-friendly delivery.
 - A sender who changes the phone's clock can distort the day boundary.
 - Uninstalling or force-stopping the app cannot be reported by the app itself; the
   silence alert (4.3) is the safeguard.
-- The relay endpoint is open. Someone who knows an FCM token could send junk to it;
+- The relay endpoint is open. Someone who knows a phone's push address could send junk to it;
   the app discards anything it cannot decrypt.
 
 ## 7. Server
@@ -215,15 +216,16 @@ battery-friendly delivery.
 
 | Method and path | Purpose |
 |---|---|
-| `POST /relay` | Body: `{ "to": "<FCM token>", "payload": "<base64 blob>" }`. Forwards the blob as a high-priority FCM data message with a 3-day time-to-live. Rejects payloads over 3 KB. Returns `204`, or `410` when the token is no longer valid. |
+| `POST /relay` | Body: `{ "to": "<push address>", "payload": "<base64 blob>" }`. Forwards the blob as a high-priority FCM data message with a 3-day time-to-live. Returns `204` when the push service accepted it, `410` when the address is no longer valid, `400` for a malformed request, `413` for a payload over 3 KB and `502` when the push service failed (the app retries later). |
 
 The handshake uses the same endpoint: the pairing request and acceptance are ordinary
 encrypted blobs. That is how the server "facilitates the handshake" without learning
 anything.
 
-### 7.3 Token refresh
+### 7.3 Push addresses
 
-FCM tokens change occasionally. When a phone's token changes, it sends the new token
+A phone's push address is its Firebase installation ID. It stays the same until the app
+is reinstalled or its data is cleared. Should it change, the phone sends the new address
 to all its pairing partners as an encrypted message. If the server answers `410` for a
 partner, the app marks that pairing as "unreachable" and suggests pairing again.
 
@@ -238,13 +240,14 @@ partner, the app marks that pairing as "unreachable" and suggests pairing again.
 - Room for local data, WorkManager for the outgoing message queue, exact alarms for the
   midnight reset.
 - Firebase Cloud Messaging for receiving messages. Requires Google Play services.
-- Google Tink for cryptography. ZXing for showing and scanning QR codes.
+- Google Tink for cryptography. ZXing for drawing QR codes; the Google code scanner of
+  Google Play services for scanning them, which needs no camera permission.
 - User interface language: English.
 - User interface: see section 9.
 
 ### 8.2 Permissions
 
-Usage access, notifications, camera (only for scanning), internet, foreground service,
+Usage access, notifications, internet, foreground service,
 start on boot, exact alarms, battery-optimisation exemption.
 
 ### 8.3 Reliability
@@ -337,8 +340,10 @@ cd accountability-buddy
 ```
 
 - The Gradle wrapper and `app/google-services.json` are committed, so no further setup
-  is needed besides the Android SDK and a connected phone with USB debugging.
-- The relay function URL is a build constant in `gradle.properties`.
+  is needed besides a JDK (17 or newer), the Android SDK and a connected phone with USB
+  debugging.
+- The app derives the relay function's URL from the Firebase project in
+  `google-services.json`; there is nothing else to configure.
 - Sender and buddy must install a build from the same repository state, because both
   must belong to the same Firebase project.
 
@@ -354,8 +359,11 @@ Run from the repository root, with the Firebase CLI logged in to the project.
 
 1. Create a Firebase project, switch it to the Blaze plan, and add an Android app with
    the application ID `dev.chr1shaefn3r.accountabilitybuddy`.
-2. Hand over `google-services.json` to be committed.
-3. Deploy the function (10.2) once the code exists.
+2. Replace the placeholder `app/google-services.json` with the file from the Firebase
+   console and commit it. With the placeholder the app builds and runs, but cannot pair.
+3. Deploy the function (10.2).
+
+The README has the commands for each step.
 
 ## 11. Engineering standards
 
@@ -383,6 +391,8 @@ Run from the repository root, with the Firebase CLI logged in to the project.
   the test suite and need no device or emulator.
 - Adapters get a small number of integration tests (Room, message encoding, encryption
   round trip). The Cloud Function has unit tests with the Firebase SDK replaced.
+- The screens are tested by driving the real app on Robolectric, with only the Keystore,
+  the push service, the relay and the job scheduler replaced. No device is needed.
 - Hand-written fakes for ports are preferred over mocking libraries.
 - Tests describe behaviour in the ubiquitous language, not implementation details.
 - A feature is done when its tests pass and `./gradlew check` is green.
@@ -398,7 +408,8 @@ Run from the repository root, with the Firebase CLI logged in to the project.
 ### 11.4 Third-party dependencies
 
 - Established, maintained libraries are used instead of own implementations wherever
-  they fit: AndroidX, Compose, Room, WorkManager, Firebase, Tink, ZXing.
+  they fit: AndroidX, Compose, Room, WorkManager, Firebase, Google Play services, Tink,
+  ZXing.
 - **No self-made cryptography.** Only Tink's primitives are used.
 - Each dependency must earn its place; a few lines of own code beat a large library
   used for one function.
@@ -450,3 +461,5 @@ None at the moment.
 | Minimum Android version | Android 16 (API 36), on both phones. |
 | Interface language | English only. |
 | Design language | Material Design 3 with dynamic colour, stock components only. |
+| Push address | The Firebase installation ID, as Firebase has deprecated registration tokens. |
+| QR scanning | Google code scanner (Play services) instead of an own camera screen. No camera permission. |
