@@ -3,6 +3,7 @@ package dev.chr1shaefn3r.accountabilitybuddy.application
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage.TrackingLost.Problem
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppCatalog
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
@@ -30,7 +31,7 @@ class BuddyReporter(
                 is Weakening.BudgetRaised ->
                     BuddyMessage.BudgetRaised(weakening.limitName, weakening.from.toMinutes(), weakening.to.toMinutes())
                 is Weakening.AppsRemoved ->
-                    BuddyMessage.AppsRemoved(weakening.limitName, weakening.apps.map(apps::label).sorted())
+                    BuddyMessage.AppsRemoved(weakening.limitName, namesOf(weakening.apps))
                 is Weakening.LimitDeleted ->
                     BuddyMessage.LimitDeleted(weakening.limitName, weakening.budget.toMinutes())
                 is Weakening.TrackingLost ->
@@ -44,6 +45,18 @@ class BuddyReporter(
         )
     }
 
+    /** The apps by the names users know, shortened so that the message always fits. */
+    private fun namesOf(removed: Set<AppId>): List<String> {
+        val names = removed.map { apps.label(it).take(MAX_APP_NAME_LENGTH) }.sorted()
+        return if (names.size <=
+            MAX_APP_NAMES
+        ) {
+            names
+        } else {
+            names.take(MAX_APP_NAMES) + "${names.size - MAX_APP_NAMES} more"
+        }
+    }
+
     override suspend fun dayClosed(dayClosed: DayClosed) {
         val entries =
             dayClosed.entries
@@ -51,5 +64,10 @@ class BuddyReporter(
                 .take(BuddyMessage.DayClosed.MAX_ENTRIES)
                 .map { BuddyMessage.DayClosed.Entry(it.limitName, it.budget.toMinutes(), it.used.toMinutes()) }
         tellBuddies(BuddyMessage.DayClosed(dayClosed.day.date.toString(), entries))
+    }
+
+    private companion object {
+        const val MAX_APP_NAMES = 15
+        const val MAX_APP_NAME_LENGTH = 40
     }
 }

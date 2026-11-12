@@ -81,7 +81,18 @@ open class AccountabilityBuddyApp : Application() {
 
     protected open fun createAddressProvider(): PushAddressProvider = FcmAddressProvider()
 
-    protected open fun createDeliverySchedule(): DeliverySchedule = WorkManagerDeliverySchedule(this)
+    /**
+     * Sends right away while the app is running, and leaves a job behind that retries
+     * when there is no network or the app is stopped first. Sending twice is harmless:
+     * a letter leaves the outbox as soon as it is delivered.
+     */
+    protected open fun createDeliverySchedule(): DeliverySchedule {
+        val retrying = WorkManagerDeliverySchedule(this)
+        return DeliverySchedule {
+            retrying.deliverSoon()
+            background.launch { buddies.deliver() }
+        }
+    }
 
     protected open fun createDatabase(): AppDatabase =
         Room.databaseBuilder(this, AppDatabase::class.java, "accountability-buddy.db").build()

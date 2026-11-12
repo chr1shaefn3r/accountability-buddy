@@ -1,6 +1,7 @@
 package dev.chr1shaefn3r.accountabilitybuddy.application
 
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage
+import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.SecureChannel
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppCatalog
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Day
@@ -16,6 +17,7 @@ import java.time.Instant
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class BuddyReporterTest {
     private val told = mutableListOf<BuddyMessage>()
@@ -49,6 +51,19 @@ class BuddyReporterTest {
             reporter.setupWeakened(Weakening.AppsRemoved("Social", setOf(AppId("com.tiktok"), AppId("com.instagram"))))
 
             assertEquals(listOf<BuddyMessage>(BuddyMessage.AppsRemoved("Social", listOf("Instagram", "Tiktok"))), told)
+        }
+
+    @Test
+    fun `a long list of removed apps is shortened so that it fits into one message`() =
+        runTest {
+            val many = (1..40).map { AppId("com.example.app%02d".format(it) + "x".repeat(60)) }.toSet()
+
+            reporter.setupWeakened(Weakening.AppsRemoved("Everything", many))
+
+            val message = told.single() as BuddyMessage.AppsRemoved
+            assertEquals(16, message.apps.size)
+            assertEquals("25 more", message.apps.last())
+            assertTrue(BuddyMessage.encode(message).size <= SecureChannel.MAX_MESSAGE_SIZE)
         }
 
     @Test
