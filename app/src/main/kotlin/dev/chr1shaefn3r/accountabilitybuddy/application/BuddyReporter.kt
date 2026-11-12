@@ -6,6 +6,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppCatalog
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SenderNotifier
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
@@ -24,6 +25,9 @@ class BuddyReporter(
         senderNotifier.limitReached(hit)
         tellBuddies(BuddyMessage.LimitHit(hit.limitName, hit.budget.toMinutes(), hit.at.epochSecond))
     }
+
+    /** Only the sender's own notification is taken back. Buddies keep what they were told: it happened. */
+    override suspend fun hitLifted(limitId: LimitId) = senderNotifier.limitNoLongerReached(limitId)
 
     override suspend fun setupWeakened(weakening: Weakening) {
         tellBuddies(

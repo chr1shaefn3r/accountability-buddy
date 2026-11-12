@@ -42,6 +42,7 @@ class InMemoryHitLog : HitLog {
     override suspend fun hitsOn(day: Day): List<LimitHit> = hits.filter { it.day == day }
 
     override suspend fun record(hit: LimitHit) {
+        hits.removeAll { it.day == hit.day && it.limitId == hit.limitId }
         hits += hit
     }
 
@@ -75,6 +76,7 @@ class RecordingEvents : LimitsEvents {
     val hits = mutableListOf<LimitHit>()
     val weakenings = mutableListOf<Weakening>()
     val closedDays = mutableListOf<DayClosed>()
+    val liftedHits = mutableListOf<LimitId>()
 
     override suspend fun limitHit(hit: LimitHit) {
         hits += hit
@@ -86,5 +88,9 @@ class RecordingEvents : LimitsEvents {
 
     override suspend fun dayClosed(dayClosed: DayClosed) {
         closedDays += dayClosed
+    }
+
+    override suspend fun hitLifted(limitId: LimitId) {
+        liftedHits += limitId
     }
 }

@@ -276,6 +276,119 @@ class LimitsServiceTest {
             assertTrue(service.today().single().hit)
         }
 
+    private suspend fun instagramIsHitAfterOneHour() {
+        service.save(insta)
+        used(instagram, "2026-11-12T08:00:00", "2026-11-12T09:00:00")
+        clock.set("2026-11-12T09:00:00")
+        service.check()
+    }
+
+    @Test
+    fun `raising the budget of a hit limit above today's usage lifts the hit`() =
+        runTest {
+            instagramIsHitAfterOneHour()
+
+            service.save(insta.copy(budget = Duration.ofHours(2)))
+
+            val status = service.today().single()
+            assertFalse(status.hit)
+            assertEquals(Duration.ofHours(1), status.used)
+            assertEquals(listOf(insta.id), events.liftedHits)
+            assertEquals(1, events.hits.size)
+        }
+
+    @Test
+    fun `a limit raised after a hit is hit again when the new budget is used up`() =
+        runTest {
+            instagramIsHitAfterOneHour()
+            service.save(insta.copy(budget = Duration.ofHours(2)))
+            used(instagram, "2026-11-12T10:00:00", "2026-11-12T11:00:00")
+            clock.set("2026-11-12T11:00:00")
+
+            service.check()
+
+            assertEquals(listOf(Duration.ofHours(1), Duration.ofHours(2)), events.hits.map { it.budget })
+            assertTrue(service.today().single().hit)
+        }
+
+    @Test
+    fun `a limit raised after a hit to less than today's usage is hit again at once`() =
+        runTest {
+            service.save(insta)
+            used(instagram, "2026-11-12T08:00:00", "2026-11-12T11:00:00")
+            clock.set("2026-11-12T11:00:00")
+            service.check()
+
+            service.save(insta.copy(budget = Duration.ofHours(2)))
+
+            assertEquals(listOf(Duration.ofHours(1), Duration.ofHours(2)), events.hits.map { it.budget })
+            assertTrue(service.today().single().hit)
+        }
+
+    @Test
+    fun `a limit hit twice appears once in the day summary, with its latest budget`() =
+        runTest {
+            instagramIsHitAfterOneHour()
+            service.save(insta.copy(budget = Duration.ofHours(2)))
+            used(instagram, "2026-11-12T10:00:00", "2026-11-12T11:30:00")
+            clock.set("2026-11-13T00:00:05")
+
+            service.check()
+
+            assertEquals(
+                listOf(DayClosed.Entry("Instagram", Duration.ofHours(2), Duration.ofMinutes(150))),
+                events.closedDays.single().entries,
+            )
+        }
+
+    @Test
+    fun `a limit raised after a hit and not reached again keeps its hit in the day summary`() =
+        runTest {
+            instagramIsHitAfterOneHour()
+            service.save(insta.copy(budget = Duration.ofHours(2)))
+            clock.set("2026-11-13T00:00:05")
+
+            service.check()
+
+            assertEquals(
+                listOf(DayClosed.Entry("Instagram", Duration.ofHours(1), Duration.ofHours(1))),
+                events.closedDays.single().entries,
+            )
+        }
+
+    @Test
+    fun `tightening a hit limit neither lifts the hit nor hits it again`() =
+        runTest {
+            instagramIsHitAfterOneHour()
+
+            service.save(insta.copy(budget = Duration.ofMinutes(30), apps = setOf(instagram, tiktok)))
+
+            assertTrue(service.today().single().hit)
+            assertEquals(emptyList(), events.liftedHits)
+            assertEquals(1, events.hits.size)
+        }
+
+    @Test
+    fun `deleting a hit limit lifts the hit`() =
+        runTest {
+            instagramIsHitAfterOneHour()
+
+            service.delete(insta.id)
+
+            assertEquals(listOf(insta.id), events.liftedHits)
+        }
+
+    @Test
+    fun `changing a limit that was not hit lifts nothing`() =
+        runTest {
+            service.save(insta)
+
+            service.save(insta.copy(budget = Duration.ofHours(2)))
+            service.delete(insta.id)
+
+            assertEquals(emptyList(), events.liftedHits)
+        }
+
     @Test
     fun `losing usage access is reported once`() =
         runTest {

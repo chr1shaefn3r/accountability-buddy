@@ -9,6 +9,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.InstalledApp
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SenderNotifier
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 import kotlinx.coroutines.test.runTest
@@ -29,7 +30,18 @@ class BuddyReporterTest {
 
             override fun launchableApps(): List<InstalledApp> = emptyList()
         }
-    private val reporter = BuddyReporter(shownToSender::add, apps, told::add)
+    private val takenBack = mutableListOf<LimitId>()
+    private val senderNotifier =
+        object : SenderNotifier {
+            override fun limitReached(hit: LimitHit) {
+                shownToSender += hit
+            }
+
+            override fun limitNoLongerReached(limitId: LimitId) {
+                takenBack += limitId
+            }
+        }
+    private val reporter = BuddyReporter(senderNotifier, apps, told::add)
     private val day = Day(LocalDate.of(2026, 11, 12))
     private val hour = Duration.ofHours(1)
 
@@ -43,6 +55,15 @@ class BuddyReporterTest {
 
             assertEquals(listOf(hit), shownToSender)
             assertEquals(listOf<BuddyMessage>(BuddyMessage.LimitHit("Instagram", 60, at.epochSecond)), told)
+        }
+
+    @Test
+    fun `a lifted hit is taken back on the sender's phone only`() =
+        runTest {
+            reporter.hitLifted(LimitId("1"))
+
+            assertEquals(listOf(LimitId("1")), takenBack)
+            assertEquals(emptyList(), told)
         }
 
     @Test

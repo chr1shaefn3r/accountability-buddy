@@ -17,8 +17,10 @@ interface LimitRepository {
 
 /** Remembers which limits were hit on which day. */
 interface HitLog {
+    /** The latest hit of each limit on [day]. */
     suspend fun hitsOn(day: Day): List<LimitHit>
 
+    /** Remembers [hit], in place of an earlier hit of the same limit on the same day. */
     suspend fun record(hit: LimitHit)
 
     suspend fun forgetBefore(day: Day)
@@ -51,11 +53,17 @@ interface LimitsEvents {
     suspend fun setupWeakened(weakening: Weakening)
 
     suspend fun dayClosed(dayClosed: DayClosed)
+
+    /** A hit of today no longer stands: the limit was weakened beyond it or deleted. */
+    suspend fun hitLifted(limitId: LimitId)
 }
 
 /** Tells the owner of this phone about their own limits. */
-fun interface SenderNotifier {
+interface SenderNotifier {
     fun limitReached(hit: LimitHit)
+
+    /** Takes back what [limitReached] showed for this limit. */
+    fun limitNoLongerReached(limitId: LimitId)
 }
 
 /** Knows the apps installed on this phone. */

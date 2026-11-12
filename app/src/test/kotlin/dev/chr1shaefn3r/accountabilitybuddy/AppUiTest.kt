@@ -30,7 +30,6 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Limit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.testing.MutableClock
-import dev.chr1shaefn3r.accountabilitybuddy.ui.asText
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.runner.RunWith
@@ -39,8 +38,6 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowUsageStatsManager
 import java.time.Duration
-import java.time.Instant
-import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -56,7 +53,7 @@ class AppUiTest {
     val compose = createEmptyComposeRule()
 
     private val app: TestApp get() = ApplicationProvider.getApplicationContext()
-    private val sam by lazy { Phone("Sam", app.network, MutableClock(Instant.now())) }
+    private val sam by lazy { Phone("Sam", app.network, MutableClock(app.clock.instant())) }
     private val video = AppId("com.example.video")
     private val videoLimit = Limit(LimitId("video"), "Video", Duration.ofHours(1), setOf(video))
 
@@ -126,16 +123,15 @@ class AppUiTest {
         assertEquals("Alex", app.preferences.displayName)
     }
 
-    @Test
-    fun `my limits show how much of each limit is used today`() {
-        onboard()
-        grantUsageAccess()
-        val now = Instant.now()
-        val startOfDay = LocalDate.now().atStartOfDay(app.clock.zone).toInstant()
-        val opened = now.minusSeconds(150)
-        val closed = now.minusSeconds(30)
+    /** Puts the video app into the phone's usage statistics, in use until half a minute ago. */
+    private fun videoWasUsedFor(duration: Duration) {
+        val closed = app.clock.instant().minusSeconds(30)
         val usage = shadowOf(app.getSystemService(UsageStatsManager::class.java))
-        val events = listOf(opened to UsageEvents.Event.ACTIVITY_RESUMED, closed to UsageEvents.Event.ACTIVITY_PAUSED)
+        val events =
+            listOf(
+                closed.minus(duration) to UsageEvents.Event.ACTIVITY_RESUMED,
+                closed to UsageEvents.Event.ACTIVITY_PAUSED,
+            )
         events.forEach { (at, type) ->
             usage.addEvent(
                 ShadowUsageStatsManager.EventBuilder
@@ -147,14 +143,47 @@ class AppUiTest {
                     .build(),
             )
         }
+    }
+
+    private fun shownNotifications(): List<String?> =
+        shadowOf(app.getSystemService(NotificationManager::class.java))
+            .allNotifications
+            .map { it.extras.getString("android.text") }
+
+    private fun noText(text: String) = compose.onAllNodesWithText(text).fetchSemanticsNodes().isEmpty()
+
+    @Test
+    fun `my limits show how much of each limit is used today`() {
+        onboard()
+        grantUsageAccess()
+        videoWasUsedFor(Duration.ofMinutes(2))
         runBlocking { app.limits.save(videoLimit) }
-        val used = Duration.between(maxOf(opened, startOfDay), maxOf(closed, startOfDay))
 
         launch()
 
         waitForText("Video")
-        waitForText("${used.asText()} of 1h")
+        waitForText("2m of 1h")
+        assertTrue(noText("Limit reached"))
         compose.onNodeWithContentDescription("Add limit").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a reached limit says so, until its time is raised above today's usage`() {
+        onboard()
+        grantUsageAccess()
+        videoWasUsedFor(Duration.ofMinutes(2))
+        val oneMinute = videoLimit.copy(budget = Duration.ofMinutes(1))
+        runBlocking { app.limits.save(oneMinute) }
+        launch()
+        waitForText("2m of 1m")
+        waitForText("Limit reached")
+        assertEquals(listOf<String?>("Video: 1m limit reached"), shownNotifications())
+
+        runBlocking { app.limits.save(oneMinute.copy(budget = Duration.ofMinutes(10))) }
+
+        waitForText("2m of 10m")
+        waitFor("\"Limit reached\" to disappear") { noText("Limit reached") }
+        assertEquals(emptyList(), shownNotifications())
     }
 
     @Test
@@ -291,7 +320,7 @@ class AppUiTest {
         onboard()
         userBecomesBuddyOfSam()
         runBlocking {
-            sam.buddies.tellBuddies(BuddyMessage.LimitHit("Instagram", 60, Instant.now().epochSecond))
+            sam.buddies.tellBuddies(BuddyMessage.LimitHit("Instagram", 60, app.clock.instant().epochSecond))
             app.network.settle()
         }
         launch()

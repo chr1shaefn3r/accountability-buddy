@@ -59,6 +59,15 @@ hold each other accountable with the same app.
 - Every buddy is sent an encrypted **limit-hit** message.
 - Each limit triggers at most once per day. Further use is not reported instantly, but
   the final total appears in the day summary.
+- The exception is a limit that is weakened after it was hit (its duration raised or an
+  app removed, see 3.5). The hit then no longer stands:
+  - "Limit reached" disappears from the sender's screen and the sender's local
+    notification is removed, unless today's usage already reaches the weakened limit.
+  - The limit can be hit again that day, as soon as today's usage reaches it. Sender and
+    buddies are then notified again.
+  - Buddies keep what they were told. They learned of the hit and of the weakening.
+  - The day summary lists the limit once: with the duration of its latest hit.
+- Tightening a limit after a hit changes nothing: the hit stands.
 - Nothing is blocked. The sender can keep using the app.
 
 ### 3.4 Midnight reset

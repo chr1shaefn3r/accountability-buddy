@@ -6,6 +6,8 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class LimitHitTest {
     private val day = Day(LocalDate.of(2026, 11, 12))
@@ -49,6 +51,45 @@ class LimitHitTest {
         val second = listOf(insta).newHits(day, usage(instagram to 50), first, noon.plusSeconds(60))
 
         assertEquals(emptyList(), second)
+    }
+
+    @Test
+    fun `a hit limit whose budget is raised can be hit again`() {
+        val first = listOf(insta).newHits(day, usage(instagram to 30), emptyList(), noon)
+        val raised = insta.copy(budget = Duration.ofMinutes(45))
+
+        assertEquals(emptyList(), listOf(raised).newHits(day, usage(instagram to 40), first, noon))
+        assertEquals(
+            listOf(Duration.ofMinutes(45)),
+            listOf(raised).newHits(day, usage(instagram to 45), first, noon).map { it.budget },
+        )
+    }
+
+    @Test
+    fun `a hit limit that loses an app can be hit again`() {
+        val first = listOf(social).newHits(day, usage(instagram to 60), emptyList(), noon)
+        val onlyTiktok = social.copy(apps = setOf(tiktok))
+
+        assertEquals(emptyList(), listOf(onlyTiktok).newHits(day, usage(instagram to 60), first, noon))
+        assertEquals(1, listOf(onlyTiktok).newHits(day, usage(instagram to 60, tiktok to 60), first, noon).size)
+    }
+
+    @Test
+    fun `tightening a hit limit does not hit it again`() {
+        val first = listOf(insta).newHits(day, usage(instagram to 30), emptyList(), noon)
+        val tightened = insta.copy(name = "Insta", budget = Duration.ofMinutes(10), apps = setOf(instagram, tiktok))
+
+        assertEquals(emptyList(), listOf(tightened).newHits(day, usage(instagram to 50), first, noon))
+    }
+
+    @Test
+    fun `a hit stands for its limit until the limit is weakened`() {
+        val hit = listOf(insta).newHits(day, usage(instagram to 30), emptyList(), noon).single()
+
+        assertTrue(hit.standsFor(insta))
+        assertTrue(hit.standsFor(insta.copy(budget = Duration.ofMinutes(5))))
+        assertFalse(hit.standsFor(insta.copy(budget = Duration.ofMinutes(31))))
+        assertFalse(hit.standsFor(social))
     }
 
     @Test

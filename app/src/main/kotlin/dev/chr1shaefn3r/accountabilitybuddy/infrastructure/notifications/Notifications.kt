@@ -12,6 +12,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyNotifier
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.Pairing
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SenderNotifier
 import dev.chr1shaefn3r.accountabilitybuddy.ui.asText
 import dev.chr1shaefn3r.accountabilitybuddy.ui.limitReachedText
@@ -24,7 +25,7 @@ class Notifications(
 ) : BuddyNotifier,
     SenderNotifier {
     private val manager = context.getSystemService(NotificationManager::class.java)
-    private val nextId = AtomicInteger((System.currentTimeMillis() % FIRST_ID_RANGE).toInt() + TRACKING_ID + 1)
+    private val nextId = AtomicInteger((System.currentTimeMillis() % FIRST_ID_RANGE).toInt() + MY_LIMIT_ID + 1)
 
     private enum class Channel(
         val id: String,
@@ -44,8 +45,14 @@ class Notifications(
         manager.createNotificationChannels(Channel.entries.map { NotificationChannel(it.id, it.title, it.importance) })
     }
 
-    override fun limitReached(hit: LimitHit) =
-        show(Channel.MY_LIMITS, "Limit reached", limitReachedText(hit.limitName, hit.budget))
+    /** One notification per limit, so that a later hit replaces it and a lifted hit can remove it. */
+    override fun limitReached(hit: LimitHit) {
+        val text = limitReachedText(hit.limitName, hit.budget)
+        val notification = builder(Channel.MY_LIMITS, "Limit reached", text).setAutoCancel(true).build()
+        manager.notify(hit.limitId.value, MY_LIMIT_ID, notification)
+    }
+
+    override fun limitNoLongerReached(limitId: LimitId) = manager.cancel(limitId.value, MY_LIMIT_ID)
 
     override fun pairingRequested(pairing: Pairing) =
         show(Channel.PAIRING, "${pairing.displayName} wants to be your buddy", "Open the app to confirm.")
@@ -115,6 +122,7 @@ class Notifications(
 
     companion object {
         const val TRACKING_ID = 1
+        private const val MY_LIMIT_ID = 2
         private const val FIRST_ID_RANGE = 1_000_000
     }
 }

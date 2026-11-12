@@ -4,6 +4,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Day
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.HitLog
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Limit
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
@@ -19,7 +20,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 
-/** A limit together with how much of it is used up today. */
+/** A limit together with how much of it is used up today. [hit] is true while a hit of today stands. */
 data class LimitStatus(
     val limit: Limit,
     val used: Duration,
@@ -45,6 +46,9 @@ class LimitsService(
             val previous = limits.find(limit.id)
             limits.save(limit)
             previous?.weakenedBy(limit)?.forEach { events.setupWeakened(it) }
+            if (previous != null && standingHit(previous) != null && standingHit(limit) == null) {
+                events.hitLifted(limit.id)
+            }
             checkToday()
         }
 
@@ -54,6 +58,7 @@ class LimitsService(
             val limit = limits.find(id) ?: return@withLock
             limits.delete(id)
             events.setupWeakened(limit.deleted())
+            if (standingHit(limit) != null) events.hitLifted(id)
         }
 
     /**
@@ -71,9 +76,13 @@ class LimitsService(
         mutex.withLock {
             val today = currentDay()
             val usage = usageOn(today) ?: Usage.NONE
-            val hit = hitLog.hitsOn(today).map { it.limitId }.toSet()
-            limits.all().map { LimitStatus(it, usage.of(it), it.id in hit) }
+            val hits = hitLog.hitsOn(today)
+            limits.all().map { limit -> LimitStatus(limit, usage.of(limit), hits.any { it.standsFor(limit) }) }
         }
+
+    /** Today's hit of [limit], unless the limit was weakened since. */
+    private suspend fun standingHit(limit: Limit): LimitHit? =
+        hitLog.hitsOn(currentDay()).firstOrNull { it.standsFor(limit) }
 
     private fun currentDay(): Day = Day.of(clock.instant(), clock.zone)
 

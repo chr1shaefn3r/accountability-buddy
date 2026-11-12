@@ -98,15 +98,16 @@ class RoomAdaptersTest {
         }
 
     @Test
-    fun `hits are kept per day and old ones can be forgotten`() =
+    fun `the latest hit of a limit is kept per day and old ones can be forgotten`() =
         runTest {
             val day = Day(LocalDate.of(2026, 11, 12))
             val hit = LimitHit(day, social.id, social.name, social.budget, social.apps, now)
+            val laterHit = hit.copy(budget = Duration.ofHours(2), at = now.plusSeconds(60))
             limits.record(hit)
-            limits.record(hit.copy(at = now.plusSeconds(60)))
+            limits.record(laterHit)
             limits.record(hit.copy(day = day.previous()))
 
-            assertEquals(listOf(hit), limits.hitsOn(day))
+            assertEquals(listOf(laterHit), limits.hitsOn(day))
 
             limits.forgetBefore(day)
             assertEquals(emptyList(), limits.hitsOn(day.previous()))

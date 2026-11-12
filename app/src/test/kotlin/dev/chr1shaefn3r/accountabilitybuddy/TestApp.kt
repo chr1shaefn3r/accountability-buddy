@@ -11,6 +11,9 @@ import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.AppDataba
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomPairings
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.Vault
 import kotlinx.coroutines.launch
+import java.time.Clock
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * The real app for user interface tests. Only what needs a real phone or the internet is
@@ -19,6 +22,19 @@ import kotlinx.coroutines.launch
 class TestApp : AccountabilityBuddyApp() {
     val network = Network()
     val address = PushAddress("installation-id-of-this-phone")
+
+    /** It is always noon today, so that no test depends on the time of day it runs at. */
+    override val clock: Clock =
+        ZoneId.systemDefault().let {
+            Clock.fixed(
+                LocalDate
+                    .now(it)
+                    .atTime(NOON, 0)
+                    .atZone(it)
+                    .toInstant(),
+                it,
+            )
+        }
     private val vault =
         object : Vault {
             override fun protect(secret: ByteArray): ByteArray = secret.reversedArray()
@@ -46,5 +62,9 @@ class TestApp : AccountabilityBuddyApp() {
     override fun onCreate() {
         super.onCreate()
         network.connect(address) { buddies.receive(it) }
+    }
+
+    private companion object {
+        const val NOON = 12
     }
 }

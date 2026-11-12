@@ -14,19 +14,27 @@ data class LimitHit(
     val budget: Duration,
     val apps: Set<AppId>,
     val at: Instant,
-)
+) {
+    /**
+     * True as long as [limit] is the limit that was hit and has not been weakened since.
+     * A hit that no longer stands does not count any more: the limit can be hit again.
+     */
+    fun standsFor(limit: Limit): Boolean =
+        limitId == limit.id && Limit(limitId, limitName, budget, apps).weakenedBy(limit).isEmpty()
+}
 
-/** The limits that have reached their budget and were not hit before on [day]. */
+/**
+ * The limits that have reached their budget on [day] and have no standing hit yet.
+ * A limit is therefore hit once per day, and once more each time it was weakened in between.
+ */
 fun List<Limit>.newHits(
     day: Day,
     usage: Usage,
     earlierHits: List<LimitHit>,
     at: Instant,
-): List<LimitHit> {
-    val alreadyHit = earlierHits.map { it.limitId }.toSet()
-    return filter { it.id !in alreadyHit && usage.of(it) >= it.budget }
+): List<LimitHit> =
+    filter { limit -> earlierHits.none { it.standsFor(limit) } && usage.of(limit) >= limit.budget }
         .map { LimitHit(day, it.id, it.name, it.budget, it.apps, at) }
-}
 
 /** The final account of a day: every limit that was hit, with its total usage. */
 data class DayClosed(

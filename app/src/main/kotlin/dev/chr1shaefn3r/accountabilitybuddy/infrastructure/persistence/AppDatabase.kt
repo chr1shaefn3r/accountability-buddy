@@ -106,7 +106,7 @@ interface LimitDao {
     @Query("SELECT * FROM hits WHERE day = :day")
     suspend fun hitsOn(day: String): List<HitRow>
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun record(row: HitRow)
 
     @Query("DELETE FROM hits WHERE day < :day")

@@ -57,7 +57,7 @@ private object PhoneClock : Clock() {
  */
 open class AccountabilityBuddyApp : Application() {
     val background = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val clock: Clock = PhoneClock
+    open val clock: Clock = PhoneClock
 
     val preferences by lazy { Preferences(this) }
     val notifications by lazy { Notifications(this) }
