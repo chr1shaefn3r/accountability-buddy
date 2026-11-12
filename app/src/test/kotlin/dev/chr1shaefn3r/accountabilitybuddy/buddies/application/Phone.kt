@@ -28,6 +28,7 @@ import java.time.Instant
 /** The relay server and push service of the tests: passes sealed messages between phones. */
 class Network {
     private val phones = mutableMapOf<PushAddress, Phone>()
+    private val others = mutableMapOf<PushAddress, suspend (ByteArray) -> Unit>()
     val traffic = mutableListOf<Pair<PushAddress, ByteArray>>()
     var online = true
 
@@ -36,6 +37,14 @@ class Network {
         phone: Phone,
     ) {
         phones[address] = phone
+    }
+
+    /** Connects something that is not a [Phone], for example the real app under test. */
+    fun connect(
+        address: PushAddress,
+        receive: suspend (ByteArray) -> Unit,
+    ) {
+        others[address] = receive
     }
 
     fun unregister(address: PushAddress) {
@@ -47,9 +56,9 @@ class Network {
         wire: ByteArray,
     ): Relay.Outcome {
         if (!online) return Relay.Outcome.TRY_LATER
-        val phone = phones[to] ?: return Relay.Outcome.ADDRESS_GONE
+        val receive = phones[to]?.let { it.buddies::receive } ?: others[to] ?: return Relay.Outcome.ADDRESS_GONE
         traffic += to to wire
-        phone.buddies.receive(wire)
+        receive(wire)
         return Relay.Outcome.DELIVERED
     }
 

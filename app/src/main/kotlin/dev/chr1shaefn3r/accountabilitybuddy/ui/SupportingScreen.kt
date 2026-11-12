@@ -89,7 +89,8 @@ fun SupportingScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = scan,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                // Screen readers get the label from the icon: the button hides its text from them.
+                icon = { Icon(Icons.Default.Add, contentDescription = "Support someone") },
                 text = { Text("Support someone") },
             )
         },

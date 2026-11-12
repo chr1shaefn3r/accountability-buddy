@@ -24,29 +24,29 @@ fun AppTheme(content: @Composable () -> Unit) {
 }
 
 @Serializable
-private object Onboarding
+internal object Onboarding
 
 @Serializable
-private object Home
+internal object Home
 
 @Serializable
-private data class EditLimit(
+internal data class EditLimit(
     val limitId: String? = null,
 )
 
 @Serializable
-private object MyBuddies
+internal object MyBuddies
 
 @Serializable
-private object Invite
+internal object Invite
 
 @Serializable
-private data class SenderDetail(
+internal data class SenderDetail(
     val pairingId: String,
 )
 
 @Serializable
-private object Settings
+internal object Settings
 
 @Composable
 fun AppNavigation(app: AccountabilityBuddyApp) {

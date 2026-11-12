@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -134,6 +135,17 @@ private fun LimitForm(
                 }
             }
         },
+        // Pinned to the bottom so that it stays in reach however long the list of apps gets.
+        bottomBar = {
+            Button(
+                onClick = {
+                    val weakened = existing?.weakenedBy(candidate()).orEmpty().isNotEmpty()
+                    if (weakened && hasBuddies) confirmingWeakening = true else save()
+                },
+                enabled = valid,
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+            ) { Text("Save") }
+        },
     ) { padding ->
         Column(Modifier.padding(padding).padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
             OutlinedTextField(
@@ -172,15 +184,6 @@ private fun LimitForm(
                     )
                 }
             OutlinedButton(onClick = { pickingApps = true }, modifier = Modifier.fillMaxWidth()) { Text("Add apps") }
-            Spacer(Modifier.height(24.dp))
-            Button(
-                onClick = {
-                    val weakened = existing?.weakenedBy(candidate()).orEmpty().isNotEmpty()
-                    if (weakened && hasBuddies) confirmingWeakening = true else save()
-                },
-                enabled = valid,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Save") }
             Spacer(Modifier.height(24.dp))
         }
     }

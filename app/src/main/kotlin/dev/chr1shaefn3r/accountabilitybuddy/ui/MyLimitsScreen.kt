@@ -111,7 +111,8 @@ fun MyLimitsScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = continueSetup,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                // Screen readers get the label from the icon: the button hides its text from them.
+                icon = { Icon(Icons.Default.Add, contentDescription = "Add limit") },
                 text = { Text("Add limit") },
             )
         },

@@ -6,9 +6,12 @@ import com.google.firebase.FirebaseApp
 import dev.chr1shaefn3r.accountabilitybuddy.application.BuddyReporter
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.application.BuddiesPorts
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.application.BuddiesService
+import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.DeliverySchedule
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.History
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PairingRepository
+import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PushAddressProvider
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PushUnavailableException
+import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.Relay
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.background.SilenceWorker
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.background.TrackingService
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.background.WakeUpReceiver
@@ -23,6 +26,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomLimit
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomOutbox
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomPairings
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomReceivedLog
+import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.Vault
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.push.FcmAddressProvider
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.push.HttpRelay
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.usage.PhoneUsage
@@ -45,8 +49,13 @@ private object PhoneClock : Clock() {
     override fun withZone(zone: ZoneId): Clock = system(zone)
 }
 
-/** Creates the parts of the app and connects them. The only place where wiring happens. */
-class AccountabilityBuddyApp : Application() {
+/**
+ * Creates the parts of the app and connects them. The only place where wiring happens.
+ *
+ * The adapters that need a real phone or the network can be replaced by a subclass,
+ * which is how the user interface tests run the app.
+ */
+open class AccountabilityBuddyApp : Application() {
     val background = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val clock: Clock = PhoneClock
 
@@ -54,11 +63,31 @@ class AccountabilityBuddyApp : Application() {
     val notifications by lazy { Notifications(this) }
     val phone by lazy { PhoneUsage(this) }
 
-    private val database by lazy {
-        Room.databaseBuilder(this, AppDatabase::class.java, "accountability-buddy.db").build()
-    }
+    private val database by lazy { createDatabase() }
     private val roomLimits by lazy { RoomLimits(database.limits()) }
-    private val roomPairings by lazy { RoomPairings(database.pairings(), KeystoreVault()) }
+    private val roomPairings by lazy { RoomPairings(database.pairings(), createVault()) }
+
+    protected open fun createVault(): Vault = KeystoreVault()
+
+    protected open fun createRelay(): Relay =
+        HttpRelay(
+            HttpRelay.urlFor(
+                FirebaseApp
+                    .getInstance()
+                    .options.projectId
+                    .orEmpty(),
+            ),
+        )
+
+    protected open fun createAddressProvider(): PushAddressProvider = FcmAddressProvider()
+
+    protected open fun createDeliverySchedule(): DeliverySchedule = WorkManagerDeliverySchedule(this)
+
+    protected open fun createDatabase(): AppDatabase =
+        Room.databaseBuilder(this, AppDatabase::class.java, "accountability-buddy.db").build()
+
+    /** Starts the periodic work that runs without the app being open. */
+    protected open fun scheduleBackgroundWork() = SilenceWorker.schedule(this)
 
     val limitRepository: LimitRepository get() = roomLimits
     val pairings: PairingRepository get() = roomPairings
@@ -70,21 +99,13 @@ class AccountabilityBuddyApp : Application() {
                 pairings = roomPairings,
                 invitations = roomPairings,
                 outbox = RoomOutbox(database.messages()),
-                deliverySchedule = WorkManagerDeliverySchedule(this),
-                relay =
-                    HttpRelay(
-                        HttpRelay.urlFor(
-                            FirebaseApp
-                                .getInstance()
-                                .options.projectId
-                                .orEmpty(),
-                        ),
-                    ),
+                deliverySchedule = createDeliverySchedule(),
+                relay = createRelay(),
                 received = RoomReceivedLog(database.messages()),
                 history = history,
                 notifier = notifications,
                 profile = preferences,
-                addressProvider = FcmAddressProvider(),
+                addressProvider = createAddressProvider(),
                 crypto = TinkCryptography(),
                 clock = clock,
             ),
@@ -105,7 +126,7 @@ class AccountabilityBuddyApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        SilenceWorker.schedule(this)
+        scheduleBackgroundWork()
         wakeUp()
         announceAddress()
     }
