@@ -13,6 +13,7 @@ import android.content.pm.PackageInfo
 import android.os.PowerManager
 import android.os.Process
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -179,12 +180,19 @@ class AppUiTest {
 
         compose.onNodeWithContentDescription("Add limit").performClick()
         waitForText("New limit")
+        compose.onNodeWithText("Save").assertIsNotEnabled()
         compose.onNodeWithText("Name").performTextInput("Evening videos")
         click("Add apps")
         waitForText("Video Player")
         click("Video Player")
         click("Done")
         waitForText("Apps sharing this time")
+        val save = compose.onNodeWithText("Save").fetchSemanticsNode().boundsInRoot
+        val name = compose.onNodeWithText("Evening videos").fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            save.bottom <= name.top,
+            "Save is in the top bar, above the form, where the keyboard cannot cover it",
+        )
         click("Save")
 
         waitFor("the limit to be saved") { runBlocking { app.limitRepository.all().isNotEmpty() } }

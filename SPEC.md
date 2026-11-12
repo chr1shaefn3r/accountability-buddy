@@ -293,8 +293,10 @@ full-screen page with a back arrow. Navigation is never more than two levels dee
   - Below, one card per limit: name, app icons, a progress bar, and "45m of 1h".
     A limit that was hit is shown in the theme's error colour.
   - A floating action button adds a limit.
-- **Edit limit**: name, duration picker (hours and minutes), and the list of apps.
-  "Add apps" opens the **app picker**: a searchable list with icons and checkboxes.
+- **Edit limit**: a full-screen dialog in Material terms. The top bar has a close icon,
+  the title and the "Save" action, so that Save stays visible while the keyboard is open.
+  Below: name, duration picker (hours and minutes), and the list of apps. "Add apps"
+  opens the **app picker**: a searchable list with icons and checkboxes.
 - **My buddies**: list of buddies with their status, "Add buddy" (shows the QR code
   with a countdown), remove buddy.
 - **Supporting**: one card per sender with the latest event ("Hit Social Media
@@ -321,6 +323,8 @@ full-screen page with a back arrow. Navigation is never more than two levels dee
 - **Accessibility.** Screen-reader labels on every control, touch targets of at least
   48 dp, layouts that hold up at the largest font size, and information never
   conveyed by colour alone.
+- **The keyboard never hides the way forward.** Forms scroll above the keyboard, and
+  the action that completes a form stays visible while typing.
 - **Durations** are always written as "1h 45m".
 
 ## 10. Build and deployment

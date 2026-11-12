@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,19 +42,29 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** The top bar of every page below the two main destinations. */
+/**
+ * The top bar of every page below the two main destinations.
+ *
+ * A page that edits something is a full-screen dialog in Material terms: it is left with
+ * a close icon ([closes]) and offers its confirming action, such as Save, in [actions].
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PageTopBar(
     title: String,
     onBack: () -> Unit,
+    closes: Boolean = false,
     actions: @Composable () -> Unit = {},
 ) {
     TopAppBar(
         title = { Text(title) },
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                if (closes) {
+                    Icon(Icons.Default.Close, contentDescription = "Close without saving")
+                } else {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
             }
         },
         actions = { actions() },

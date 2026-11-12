@@ -3,10 +3,11 @@ package dev.chr1shaefn3r.accountabilitybuddy.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -127,27 +127,31 @@ private fun LimitForm(
 
     Scaffold(
         topBar = {
-            PageTopBar(if (existing == null) "New limit" else "Edit limit", onBack) {
+            // Save sits in the top bar, where neither the keyboard nor a long list of apps can cover it.
+            PageTopBar(if (existing == null) "New limit" else "Edit limit", onBack, closes = true) {
                 if (existing != null) {
                     IconButton(onClick = { confirmingDelete = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "Delete limit")
                     }
                 }
+                TextButton(
+                    onClick = {
+                        val weakened = existing?.weakenedBy(candidate()).orEmpty().isNotEmpty()
+                        if (weakened && hasBuddies) confirmingWeakening = true else save()
+                    },
+                    enabled = valid,
+                ) { Text("Save") }
             }
         },
-        // Pinned to the bottom so that it stays in reach however long the list of apps gets.
-        bottomBar = {
-            Button(
-                onClick = {
-                    val weakened = existing?.weakenedBy(candidate()).orEmpty().isNotEmpty()
-                    if (weakened && hasBuddies) confirmingWeakening = true else save()
-                },
-                enabled = valid,
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
-            ) { Text("Save") }
-        },
     ) { padding ->
-        Column(Modifier.padding(padding).padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
+        Column(
+            Modifier
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .imePadding()
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it.take(Limit.MAX_NAME_LENGTH) },
@@ -240,7 +244,13 @@ private fun AppPicker(
             }
         },
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
+        Column(
+            Modifier
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .imePadding()
+                .fillMaxSize(),
+        ) {
             OutlinedTextField(
                 value = search,
                 onValueChange = { search = it },
