@@ -53,6 +53,98 @@ class SessionsTest {
         }
 
     @Test
+    fun `when every limit is reached no session can be started`() =
+        runTest {
+            service.save(social.copy(budget = Duration.ofMinutes(30)))
+            service.save(videos.copy(budget = Duration.ofMinutes(10)))
+            used(instagram, "19:00:00", "19:30:00")
+            used(tiktok, "19:30:00", "19:40:00")
+            at("2026-11-12T20:00:00")
+
+            assertEquals(SessionOffer.ALL_LIMITS_REACHED, service.sessionOffer.value)
+            assertFalse(service.startSession(quarterOfAnHour))
+            assertEquals(emptyList(), shown())
+        }
+
+    @Test
+    fun `while one limit is not reached a session can be started`() =
+        runTest {
+            service.save(social.copy(budget = Duration.ofMinutes(30)))
+            service.save(videos)
+            used(instagram, "19:00:00", "19:30:00")
+            at("2026-11-12T20:00:00")
+
+            assertEquals(SessionOffer.AVAILABLE, service.sessionOffer.value)
+            assertTrue(service.startSession(quarterOfAnHour))
+        }
+
+    @Test
+    fun `a limit reached unnoticed still stops a session from being started`() =
+        runTest {
+            service.save(social.copy(budget = Duration.ofMinutes(30)))
+            used(instagram, "19:00:00", "19:30:00")
+            clock.set("2026-11-12T19:45:00")
+
+            assertFalse(service.startSession(quarterOfAnHour))
+            assertEquals(listOf("Social"), events.hits.map { it.limitName })
+        }
+
+    @Test
+    fun `raising a reached limit makes a session possible again`() =
+        runTest {
+            val halfAnHour = social.copy(budget = Duration.ofMinutes(30))
+            service.save(halfAnHour)
+            used(instagram, "19:00:00", "19:30:00")
+            at("2026-11-12T20:00:00")
+
+            service.save(halfAnHour.copy(budget = Duration.ofHours(2)))
+
+            assertEquals(SessionOffer.AVAILABLE, service.sessionOffer.value)
+            assertTrue(service.startSession(quarterOfAnHour))
+        }
+
+    @Test
+    fun `a running session goes on when the last limit is reached`() =
+        runTest {
+            service.save(social.copy(budget = Duration.ofMinutes(30)))
+            service.startSession(Duration.ofHours(2))
+            used(instagram, "20:00:00", "20:30:00")
+
+            at("2026-11-12T20:30:00")
+
+            assertTrue(shown().single().session.isRunning)
+            assertEquals(SessionOffer.ALREADY_RUNNING, service.sessionOffer.value)
+        }
+
+    @Test
+    fun `on the next day a session can be started again`() =
+        runTest {
+            service.save(social.copy(budget = Duration.ofMinutes(30)))
+            used(instagram, "19:00:00", "19:30:00")
+            at("2026-11-12T20:00:00")
+
+            at("2026-11-13T07:00:00")
+
+            assertEquals(SessionOffer.AVAILABLE, service.sessionOffer.value)
+        }
+
+    @Test
+    fun `what stands in the way of a session is known`() =
+        runTest {
+            service.check()
+            assertEquals(SessionOffer.NO_LIMITS, service.sessionOffer.value)
+
+            service.save(social)
+            assertEquals(SessionOffer.AVAILABLE, service.sessionOffer.value)
+
+            service.startSession(quarterOfAnHour)
+            assertEquals(SessionOffer.ALREADY_RUNNING, service.sessionOffer.value)
+
+            service.stopSession(shown().single().session.id)
+            assertEquals(SessionOffer.AVAILABLE, service.sessionOffer.value)
+        }
+
+    @Test
     fun `a started session is running and has used nothing yet`() =
         runTest {
             service.save(social)

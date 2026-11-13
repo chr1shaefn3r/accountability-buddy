@@ -24,6 +24,7 @@ import androidx.work.WorkerParameters
 import dev.chr1shaefn3r.accountabilitybuddy.AccountabilityBuddyApp
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.DeliverySchedule
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.notifications.Notifications
+import dev.chr1shaefn3r.accountabilitybuddy.limits.application.SessionOffer
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionId
 import kotlinx.coroutines.CoroutineScope
@@ -108,14 +109,12 @@ class TrackingService : Service() {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
         )
         // The notifications follow the sessions: a running one is shown with a way to stop it,
-        // and the permanent notification offers to start one only while none is running.
+        // and the permanent notification offers to start one only while one can be started.
         val running = app.limits.sessionStatuses.map { statuses -> statuses.firstOrNull { it.session.isRunning } }
         scope.launch { running.collect { app.notifications.showSession(it) } }
         scope.launch {
-            running.map { it == null }.distinctUntilChanged().collect {
-                app.notifications.showTracking(
-                    offerSessions = it,
-                )
+            app.limits.sessionOffer.map { it == SessionOffer.AVAILABLE }.distinctUntilChanged().collect {
+                app.notifications.showTracking(offerSessions = it)
             }
         }
         val power = getSystemService(PowerManager::class.java)

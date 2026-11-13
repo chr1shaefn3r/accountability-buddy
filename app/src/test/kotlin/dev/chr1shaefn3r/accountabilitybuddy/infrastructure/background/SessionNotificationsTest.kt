@@ -3,6 +3,8 @@ package dev.chr1shaefn3r.accountabilitybuddy.infrastructure.background
 import android.app.AppOpsManager
 import android.app.Notification
 import android.app.NotificationManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import android.os.Process
 import androidx.test.core.app.ApplicationProvider
 import dev.chr1shaefn3r.accountabilitybuddy.TestApp
@@ -18,6 +20,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowUsageStatsManager
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -75,6 +78,35 @@ class SessionNotificationsTest {
     fun `the permanent notification offers to start a session of a usual length`() {
         assertEquals(listOf("5 min", "15 min", "30 min"), watching.buttons())
         assertNull(session)
+    }
+
+    @Test
+    fun `the permanent notification offers no session once all limits are reached`() {
+        // An hour and ten minutes pass, nearly all of them in the video app, whose limit is one hour.
+        val opened = app.clock.instant().plusSeconds(60)
+        app.clockOffset = Duration.ofMinutes(70)
+        val usage = shadowOf(app.getSystemService(UsageStatsManager::class.java))
+        val events =
+            listOf(
+                opened to UsageEvents.Event.ACTIVITY_RESUMED,
+                app.clock.instant().minusSeconds(30) to UsageEvents.Event.ACTIVITY_PAUSED,
+            )
+        events.forEach { (at, type) ->
+            usage.addEvent(
+                ShadowUsageStatsManager.EventBuilder
+                    .buildEvent()
+                    .setTimeStamp(at.toEpochMilli())
+                    .setPackage("com.example.video")
+                    .setClass("Player")
+                    .setEventType(type)
+                    .build(),
+            )
+        }
+
+        runBlocking { app.limits.check() }
+
+        waitFor("the permanent notification to stop offering sessions") { watching.buttons().isEmpty() }
+        assertEquals(false, runBlocking { app.limits.startSession(Duration.ofMinutes(15)) })
     }
 
     @Test

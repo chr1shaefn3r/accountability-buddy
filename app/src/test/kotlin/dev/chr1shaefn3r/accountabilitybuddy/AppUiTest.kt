@@ -305,6 +305,19 @@ class AppUiTest {
     }
 
     @Test
+    fun `when all limits are reached no session can be started, and the page says why`() {
+        onboard()
+        grantUsageAccess()
+        videoWasUsedFor(Duration.ofMinutes(2))
+        inApp { app.limits.save(videoLimit.copy(budget = Duration.ofMinutes(1))) }
+        launch()
+
+        waitForText("Limit reached")
+        waitForText("All your limits are reached, so no session can be started today.")
+        compose.onNodeWithText("Start session").assertIsNotEnabled()
+    }
+
+    @Test
     fun `without a limit no session is offered`() {
         onboard()
         launch()

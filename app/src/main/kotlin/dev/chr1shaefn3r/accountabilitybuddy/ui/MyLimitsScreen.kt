@@ -58,6 +58,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PairingState
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PartnerRole
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.notifications.Notifications
 import dev.chr1shaefn3r.accountabilitybuddy.limits.application.LimitStatus
+import dev.chr1shaefn3r.accountabilitybuddy.limits.application.SessionOffer
 import dev.chr1shaefn3r.accountabilitybuddy.limits.application.SessionStatus
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Limit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
@@ -105,6 +106,7 @@ fun MyLimitsScreen(
         remember(resumes, limits) { if (limits.isNullOrEmpty()) emptySet() else app.phone.currentProblems() }
     val scope = rememberCoroutineScope()
     val sessions by app.limits.sessionStatuses.collectAsStateWithLifecycle()
+    val sessionOffer by app.limits.sessionOffer.collectAsStateWithLifecycle()
     var startingSession by rememberSaveable { mutableStateOf(false) }
 
     // Before the first limit, the sender role needs usage access and, ideally, no battery restrictions.
@@ -158,13 +160,30 @@ fun MyLimitsScreen(
                     )
                 }
             }
-            // A session needs limits, whose apps it counts, and there is one session at a time.
-            if (cards.isNotEmpty() && sessions.none { it.session.isRunning }) {
-                item(key = "start-session") {
-                    FilledTonalButton(onClick = { startingSession = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Start session")
+            when (sessionOffer) {
+                SessionOffer.AVAILABLE ->
+                    item(key = "start-session") {
+                        FilledTonalButton(onClick = { startingSession = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Start session")
+                        }
                     }
-                }
+                // The button stays in its place, switched off, with the reason next to it.
+                SessionOffer.ALL_LIMITS_REACHED ->
+                    item(key = "start-session") {
+                        Column {
+                            FilledTonalButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+                                Text("Start session")
+                            }
+                            Text(
+                                "All your limits are reached, so no session can be started today.",
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            )
+                        }
+                    }
+                // Without limits there is nothing to count, and there is one session at a time.
+                SessionOffer.NO_LIMITS, SessionOffer.ALREADY_RUNNING -> Unit
             }
             items(sessions, key = { "session-${it.session.id.value}" }) { status ->
                 SessionCard(

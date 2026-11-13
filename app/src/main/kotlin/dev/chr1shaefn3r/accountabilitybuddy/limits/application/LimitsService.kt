@@ -47,6 +47,34 @@ data class SessionStatus(
     val level: UsageLevel get() = if (session.isUsedUp) UsageLevel.REACHED else UsageLevel.of(used, session.length)
 }
 
+/** Whether a session can be started now, and if not, what stands in the way. */
+enum class SessionOffer {
+    AVAILABLE,
+
+    /** There are no limits, so there are no apps a session could count. */
+    NO_LIMITS,
+
+    /** There is one session at a time. */
+    ALREADY_RUNNING,
+
+    /** Every limit is reached: there is no time left to take a break in. */
+    ALL_LIMITS_REACHED,
+    ;
+
+    companion object {
+        fun of(
+            limits: List<LimitStatus>,
+            sessions: List<Session>,
+        ): SessionOffer =
+            when {
+                limits.isEmpty() -> NO_LIMITS
+                sessions.any { it.isRunning } -> ALREADY_RUNNING
+                limits.all { it.hit } -> ALL_LIMITS_REACHED
+                else -> AVAILABLE
+            }
+    }
+}
+
 /** The use cases of the Limits context. */
 @Suppress("TooManyFunctions")
 class LimitsService(
@@ -72,6 +100,11 @@ class LimitsService(
 
     /** Today's sessions that were not dismissed, newest first, as they were last worked out. */
     val sessionStatuses: StateFlow<List<SessionStatus>> = latestSessions
+
+    private val latestOffer = MutableStateFlow(SessionOffer.NO_LIMITS)
+
+    /** Whether a session can be started, as it was last worked out. */
+    val sessionOffer: StateFlow<SessionOffer> = latestOffer
 
     /** Creates or changes a limit. Buddies learn about every way in which it got weaker. */
     suspend fun save(limit: Limit) =
@@ -99,13 +132,15 @@ class LimitsService(
         }
 
     /**
-     * Starts a session of [length]. Returns false if there is nothing to count (no limits)
-     * or a session is already running: there is one session at a time.
+     * Starts a session of [length]. Returns false if no session can be started now:
+     * see [SessionOffer] for what can stand in the way.
      */
     suspend fun startSession(length: Duration): Boolean =
         mutex.withLock {
             closePastDays()
-            if (limits.all().isEmpty() || sessions.all().any { it.isRunning }) return@withLock false
+            checkToday()
+            refreshStatuses()
+            if (latestOffer.value != SessionOffer.AVAILABLE) return@withLock false
             sessions.save(Session(SessionId(UUID.randomUUID().toString()), length, clock.instant()))
             refreshStatuses()
             true
@@ -154,15 +189,18 @@ class LimitsService(
         val hits = hitLog.hitsOn(today)
         val allLimits = limits.all()
         val limitedApps = allLimits.flatMap { it.apps }.toSet()
+        val allSessions = sessions.all()
         latestSessions.value =
-            sessions
-                .all()
+            allSessions
                 .filterNot { it.dismissed }
                 .sortedByDescending { it.startedAt }
                 .map { SessionStatus(it, it.used(intervals, limitedApps, now)) }
         return allLimits
             .map { limit -> LimitStatus(limit, usage.of(limit), hits.any { it.standsFor(limit) }) }
-            .also { latestStatuses.value = it }
+            .also {
+                latestStatuses.value = it
+                latestOffer.value = SessionOffer.of(it, allSessions)
+            }
     }
 
     /** The time [session] has counted on [day] until [until]. */

@@ -112,6 +112,11 @@ endless scrolling. It is a one-off time budget on top of the daily limits.
   notification, which offers one button per usual length: 5, 15 and 30 minutes.
 - There is **one session at a time**. While one is running, no other can be started.
 - A session needs at least one limit, because the apps of the limits are what it counts.
+- A session **cannot be started while all limits are reached**: then there is no time
+  left to take a break in. On "My limits" the button stays in its place, switched off,
+  with the reason next to it; the notification does not offer its buttons. As long as
+  one limit is not reached, a session can be started. A session that is already running
+  goes on when the last limit is reached.
 
 **Counting**
 
