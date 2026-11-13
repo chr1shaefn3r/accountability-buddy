@@ -43,6 +43,9 @@ android {
         disable += "OldTargetApi"
         // Push is addressed by Firebase installation ID; the token callback this check asks for is deprecated.
         disable += "MissingFirebaseInstanceTokenRefresh"
+        // A build must not start failing because a library published a new version.
+        // Versions are pinned in gradle/libs.versions.toml and raised on purpose.
+        disable += listOf("NewerVersionAvailable", "GradleDependency", "AndroidGradlePluginVersion")
     }
 }
 
