@@ -180,6 +180,52 @@ class AppUiTest {
     }
 
     @Test
+    fun `a limit close to its end shows a warning and notifies the sender`() {
+        onboard()
+        grantUsageAccess()
+        videoWasUsedFor(Duration.ofMinutes(8))
+
+        inApp { app.limits.save(videoLimit.copy(budget = Duration.ofMinutes(10))) }
+        launch()
+
+        waitForText("8m of 10m")
+        waitForText("Warning")
+        assertTrue(noText("Limit reached"))
+        assertEquals(listOf<String?>("Video: 8m of 10m, 2m left"), shownNotifications())
+    }
+
+    @Test
+    fun `a limit very close to its end shows the last warning`() {
+        onboard()
+        grantUsageAccess()
+        videoWasUsedFor(Duration.ofMinutes(19))
+
+        inApp { app.limits.save(videoLimit.copy(budget = Duration.ofMinutes(20))) }
+        launch()
+
+        waitForText("19m of 20m")
+        waitForText("Last warning")
+        assertEquals(listOf<String?>("Video: 19m of 20m, 1m left"), shownNotifications())
+    }
+
+    @Test
+    fun `a warning disappears when the limit is raised`() {
+        onboard()
+        grantUsageAccess()
+        videoWasUsedFor(Duration.ofMinutes(8))
+        val tenMinutes = videoLimit.copy(budget = Duration.ofMinutes(10))
+        inApp { app.limits.save(tenMinutes) }
+        launch()
+        waitForText("Warning")
+
+        inApp { app.limits.save(tenMinutes.copy(budget = Duration.ofMinutes(30))) }
+
+        waitForText("8m of 30m")
+        waitFor("the warning to disappear") { noText("Warning") }
+        assertEquals(emptyList(), shownNotifications())
+    }
+
+    @Test
     fun `a reached limit says so, until its time is raised above today's usage`() {
         onboard()
         grantUsageAccess()

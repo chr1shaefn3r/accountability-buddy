@@ -28,6 +28,8 @@ complexity:
 
 style:
   MagicNumber:
+    # The values of an enum are named by their entry: WARNING(80) needs no further constant.
+    ignoreEnums: true
     ignoreAnnotated: ['Composable']
     ignorePropertyDeclaration: true
     excludes: ['**/test/**']

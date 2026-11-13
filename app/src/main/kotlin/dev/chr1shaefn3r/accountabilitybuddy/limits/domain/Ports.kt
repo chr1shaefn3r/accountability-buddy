@@ -53,6 +53,7 @@ interface TrackingHealth {
 interface LimitsMemory {
     var lastClosedDay: Day?
     var reportedProblems: Set<TrackingProblem>
+    var announcedWarnings: AnnouncedWarnings
 }
 
 /** Receives what happens in the Limits context. */
@@ -68,16 +69,24 @@ interface LimitsEvents {
 
     /** The time of a session is used up. This counts like a limit that was hit. */
     suspend fun sessionUsedUp(session: Session)
+
+    /** A limit or a session is close to its end. */
+    suspend fun warned(warning: UsageWarning)
+
+    /** A warning no longer applies: the limit was weakened or deleted, or the session stopped. */
+    suspend fun warningLifted(subjectId: String)
 }
 
 /** Tells the owner of this phone about their own limits. */
 interface SenderNotifier {
     fun limitReached(hit: LimitHit)
 
-    /** Takes back what [limitReached] showed for this limit. */
-    fun limitNoLongerReached(limitId: LimitId)
-
     fun sessionUsedUp(session: Session)
+
+    fun warned(warning: UsageWarning)
+
+    /** Takes back whatever is shown about the limit or session with this id. */
+    fun nothingToShowFor(subjectId: String)
 }
 
 /** Knows the apps installed on this phone. */

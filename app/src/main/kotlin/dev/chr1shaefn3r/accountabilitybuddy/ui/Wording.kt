@@ -1,7 +1,6 @@
 package dev.chr1shaefn3r.accountabilitybuddy.ui
 
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage
-import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import java.time.Duration
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -39,16 +38,6 @@ fun LocalDate.asTextRelativeTo(today: LocalDate): String =
         else -> asText()
     }
 
-fun limitReachedText(
-    limitName: String,
-    budget: Duration,
-): String = "$limitName: ${budget.asText()} limit reached"
-
-fun usageText(
-    used: Duration,
-    budget: Duration,
-): String = "${used.asText()} of ${budget.asText()}"
-
 /** One line that says what a message from a sender reports. */
 fun BuddyMessage.asText(): String =
     when (this) {
@@ -81,6 +70,3 @@ fun quietText(daysSinceLastEvent: Long?): String =
         1L -> "Last report yesterday"
         else -> "All quiet for $daysSinceLastEvent days"
     }
-
-/** What a session is called in the list: "Session" while it runs, "Session (ended)" afterwards. */
-fun sessionTitle(session: Session): String = if (session.isRunning) Session.NAME else "${Session.NAME} (ended)"

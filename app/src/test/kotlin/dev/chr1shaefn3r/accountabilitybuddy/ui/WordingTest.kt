@@ -1,6 +1,8 @@
 package dev.chr1shaefn3r.accountabilitybuddy.ui
 
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageLevel
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageWarning
 import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.Test
@@ -70,5 +72,27 @@ class WordingTest {
         assertEquals("Last report today", quietText(0))
         assertEquals("Last report yesterday", quietText(1))
         assertEquals("All quiet for 5 days", quietText(5))
+    }
+
+    @Test
+    fun `a warning says how much is used and how much is left`() {
+        val hour = Duration.ofHours(1)
+
+        assertEquals(
+            "Instagram: 48m of 1h, 12m left",
+            warningText(UsageWarning("1", "Instagram", hour, Duration.ofMinutes(48), UsageLevel.WARNING)),
+        )
+        assertEquals(
+            "Session: 59m of 1h, less than 1m left",
+            warningText(UsageWarning("2", "Session", hour, Duration.ofSeconds(3570), UsageLevel.LAST_WARNING)),
+        )
+    }
+
+    @Test
+    fun `each level has its name`() {
+        assertEquals("", UsageLevel.NORMAL.asText())
+        assertEquals("Warning", UsageLevel.WARNING.asText())
+        assertEquals("Last warning", UsageLevel.LAST_WARNING.asText())
+        assertEquals("Limit reached", UsageLevel.REACHED.asText())
     }
 }

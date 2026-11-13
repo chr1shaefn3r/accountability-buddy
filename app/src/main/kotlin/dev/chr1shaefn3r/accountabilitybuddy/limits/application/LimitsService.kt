@@ -1,5 +1,6 @@
 package dev.chr1shaefn3r.accountabilitybuddy.limits.application
 
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AnnouncedWarnings
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Day
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.ForegroundInterval
@@ -15,7 +16,9 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingHealth
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Usage
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageLevel
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageSource
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageWarning
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.newHits
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,13 +35,17 @@ data class LimitStatus(
     val limit: Limit,
     val used: Duration,
     val hit: Boolean,
-)
+) {
+    val level: UsageLevel get() = if (hit) UsageLevel.REACHED else UsageLevel.of(used, limit.budget)
+}
 
 /** A session together with the time spent in limited apps since it started. */
 data class SessionStatus(
     val session: Session,
     val used: Duration,
-)
+) {
+    val level: UsageLevel get() = if (session.isUsedUp) UsageLevel.REACHED else UsageLevel.of(used, session.length)
+}
 
 /** The use cases of the Limits context. */
 @Suppress("TooManyFunctions")
@@ -87,6 +94,7 @@ class LimitsService(
             limits.delete(id)
             events.setupWeakened(limit.deleted())
             if (standingHit(limit) != null) events.hitLifted(id)
+            checkToday()
             refreshStatuses()
         }
 
@@ -111,6 +119,7 @@ class LimitsService(
             val session = sessions.all().firstOrNull { it.id == id && it.isRunning } ?: return@withLock
             val now = clock.instant()
             sessions.save(session.stopped(now, usedBy(session, currentDay(), now)))
+            announceWarnings()
             refreshStatuses()
         }
 
@@ -218,7 +227,47 @@ class LimitsService(
             .map { DayClosed.entryFor(it, it.usedWhenStopped ?: it.length) }
     }
 
-    private suspend fun checkToday() = detectHits(currentDay(), clock.instant())
+    private suspend fun checkToday() {
+        detectHits(currentDay(), clock.instant())
+        announceWarnings()
+    }
+
+    /**
+     * Tells the sender when a limit or the running session comes close to its end, once per
+     * level and day. A level that no longer applies is taken back, so that it can be
+     * announced again: this happens when a limit is weakened or deleted or a session stops.
+     */
+    private suspend fun announceWarnings() {
+        val today = currentDay()
+        val intervals = intervalsOn(today) ?: return
+        val usage = Usage.on(today, clock.zone, intervals)
+        val allLimits = limits.all()
+        val limitedApps = allLimits.flatMap { it.apps }.toSet()
+        val now = clock.instant()
+        val candidates =
+            allLimits.map { UsageWarning(it.id.value, it.name, it.budget, usage.of(it), UsageLevel.NORMAL) } +
+                sessions.all().filter { it.isRunning }.map {
+                    UsageWarning(
+                        it.id.value,
+                        Session.NAME,
+                        it.length,
+                        it.used(intervals, limitedApps, now),
+                        UsageLevel.NORMAL,
+                    )
+                }
+        val before = memory.announcedWarnings
+        val levels = candidates.associate { it.subjectId to UsageLevel.of(it.used, it.budget) }
+        memory.announcedWarnings = AnnouncedWarnings(today, levels)
+        for (candidate in candidates) {
+            val level = levels.getValue(candidate.subjectId)
+            val previous = before.levelOn(today, candidate.subjectId)
+            if (level > previous && level.isWarning) events.warned(candidate.copy(level = level))
+            if (level < previous) events.warningLifted(candidate.subjectId)
+        }
+        before.levels
+            .filter { (id, level) -> id !in levels && before.levelOn(today, id) == level && level.isWarning }
+            .forEach { (id, _) -> events.warningLifted(id) }
+    }
 
     private suspend fun detectHits(
         day: Day,

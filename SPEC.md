@@ -25,6 +25,8 @@ The system has two parts:
 | **Limit** | A daily time budget for one or more apps. |
 | **Pairing** | An encrypted link between one sender and one buddy. |
 | **Day** | A calendar day in the sender phone's local time zone, 00:00 to 24:00. |
+| **Warning** | A limit or session has used 80% of its time. Told to the sender only. |
+| **Last warning** | A limit or session has used 95% of its time. Told to the sender only. |
 | **Session** | A break the sender allows themselves: a number of minutes in the apps of their limits, counted from the moment the session starts. |
 
 One installation can be a sender and a buddy at the same time. A sender can have
@@ -149,6 +151,36 @@ endless scrolling. It is a one-off time budget on top of the daily limits.
 - While a session runs, a separate silent notification shows it with the time counted
   so far ("7m of 15m") and a "Stop" button. It disappears when the session is over.
 - While a session runs, the permanent notification does not offer to start one.
+
+### 3.7 Warnings before the end
+
+A limit, and likewise a session, passes through four levels as its time is used:
+
+| Level | From | Colour | Who is told |
+|---|---|---|---|
+| Normal | 0% | the theme's colour | nobody |
+| **Warning** | 80% | orange | the sender |
+| **Last warning** | 95% | dark orange | the sender |
+| Limit reached | 100% | the theme's error colour | the sender and the buddies (3.3) |
+
+- The two warnings are **for the sender alone**. Buddies are not told, and a warning is
+  neither a hit nor a weakening. Nothing about warnings appears in the day summary.
+- The sender is told by a **notification** ("Warning" or "Last warning", with what is
+  used and what is left: "Social Media: 48m of 1h, 12m left") and on "My limits".
+- The warning notification arrives silently. The last warning makes a sound, like
+  "Limit reached". Each has its own channel, so this can be changed in Android's
+  settings.
+- There is **one notification per limit or session**. It moves on from the warning to
+  the last warning to "Limit reached" instead of piling up.
+- Each level is announced **once per day** per limit, and once per session. If usage
+  passes both marks between two looks, only the last warning is announced; if it passes
+  100%, only "Limit reached".
+- A warning is **taken back** when it no longer applies: the limit was weakened or
+  deleted, or the session was stopped. The notification is removed, and the level can
+  be announced again later. Raising a limit to a value at which a warning already
+  applies does not announce that warning again.
+- A limit that is created or tightened so that a warning applies at once is warned
+  about at once.
 
 ## 4. Buddy features
 
@@ -335,7 +367,9 @@ gives up after 20 seconds.
   No custom design system, no custom widgets, no custom animations.
 - **Dynamic colour** (Material You): the app takes its colours from the user's
   wallpaper and follows the system light or dark theme. There is no in-app theme
-  setting.
+  setting. The two exceptions are the orange and the dark orange of the warnings (3.7),
+  which the wallpaper colours cannot provide. They are fixed, in one variant for the
+  light and one for the dark theme, and chosen to be readable on cards.
 - Platform conventions are followed as they are: edge-to-edge layout, predictive back,
   system font size, system notification settings.
 - The app should feel like a part of Android's own settings: calm, predictable, quick
@@ -363,7 +397,10 @@ full-screen page with a back arrow. Navigation is never more than two levels dee
   - A row at the top shows the buddies ("2 buddies" or "No buddy yet — add one") and
     opens **My buddies**.
   - Below, one card per limit: name, app icons, a progress bar, and "45m of 1h".
-    A limit that was hit is shown in the theme's error colour.
+    The bar has the colour of the limit's level (3.7) and a small vertical mark at 80%
+    and at 95%, where the warning and the last warning begin. From the warning on, the
+    level is also written on the card ("Warning", "Last warning", "Limit reached"), so
+    that it is never told by colour alone. Session cards show the same.
   - Above the limits, the sessions of the day (3.6): a "Start session" button while
     none is running, which asks for the minutes and offers the usual lengths as chips;
     the running session as a card with a progress bar, "7m of 15m" and "Stop session";
@@ -395,8 +432,8 @@ full-screen page with a back arrow. Navigation is never more than two levels dee
 - **Problems are visible.** If tracking does not work (missing permission, service
   stopped), a banner on **My limits** says so and offers the fix.
 - **Notification channels.** Each kind of notification has its own Android channel
-  (limit reached, day summary, changes by the sender, silence alert, running session,
-  tracking service), so users can tune sound and visibility in the system settings.
+  (limit reached, warning, last warning, day summary, changes by the sender, silence
+  alert, running session, tracking service), so users can tune sound and visibility in the system settings.
 - **Accessibility.** Screen-reader labels on every control, touch targets of at least
   48 dp, layouts that hold up at the largest font size, and information never
   conveyed by colour alone.
@@ -465,6 +502,9 @@ The README has the commands for each step.
   not belong to a limit: it refers to "the apps of all limits" and is evaluated against
   the same usage. The Buddies context does not know sessions; a used-up session reaches
   it as a reached limit.
+- `UsageLevel` is the value that says how far a time budget is used up (normal,
+  warning, last warning, reached). Limits and sessions share it. Only "reached" crosses
+  into the Buddies context; the warnings stay inside Limits.
 - The **domain layer is plain Kotlin** with no Android, Firebase, Room or Tink imports.
   Everything outside (usage statistics, clock, storage, push, encryption, relay) is
   reached through interfaces owned by the domain (ports) and implemented in an
@@ -557,3 +597,4 @@ None at the moment.
 | Session used up | Reported once like a reached limit; the session keeps counting until stopped or midnight. |
 | Starting a session from the notification | Three preset buttons: 5, 15 and 30 minutes. |
 | What a buddy learns about sessions | Only that one was used up, and its overrun in the day summary. |
+| Warnings | At 80% (orange, silent) and 95% (dark orange, with sound), for limits and sessions. For the sender only; buddies are not told. |

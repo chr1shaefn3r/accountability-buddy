@@ -11,6 +11,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SenderNotifier
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageWarning
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 
 /**
@@ -28,7 +29,12 @@ class BuddyReporter(
     }
 
     /** Only the sender's own notification is taken back. Buddies keep what they were told: it happened. */
-    override suspend fun hitLifted(limitId: LimitId) = senderNotifier.limitNoLongerReached(limitId)
+    override suspend fun hitLifted(limitId: LimitId) = senderNotifier.nothingToShowFor(limitId.value)
+
+    /** Warnings are for the sender alone. Buddies hear of a limit only when it is reached. */
+    override suspend fun warned(warning: UsageWarning) = senderNotifier.warned(warning)
+
+    override suspend fun warningLifted(subjectId: String) = senderNotifier.nothingToShowFor(subjectId)
 
     /** A used up session counts like a reached limit, on the sender's phone and for the buddies. */
     override suspend fun sessionUsedUp(session: Session) {

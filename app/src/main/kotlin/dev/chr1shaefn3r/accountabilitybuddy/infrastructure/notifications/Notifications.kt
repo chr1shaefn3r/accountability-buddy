@@ -14,12 +14,14 @@ import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.Pairing
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.background.SessionReceiver
 import dev.chr1shaefn3r.accountabilitybuddy.limits.application.SessionStatus
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
-import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SenderNotifier
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageLevel
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageWarning
 import dev.chr1shaefn3r.accountabilitybuddy.ui.asText
 import dev.chr1shaefn3r.accountabilitybuddy.ui.limitReachedText
 import dev.chr1shaefn3r.accountabilitybuddy.ui.usageText
+import dev.chr1shaefn3r.accountabilitybuddy.ui.warningText
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -30,6 +32,8 @@ private enum class Channel(
     val importance: Int,
 ) {
     MY_LIMITS("my-limits", "My limits reached", NotificationManager.IMPORTANCE_DEFAULT),
+    MY_WARNING("my-warning", "My limits: warning at 80%", NotificationManager.IMPORTANCE_LOW),
+    MY_LAST_WARNING("my-last-warning", "My limits: last warning at 95%", NotificationManager.IMPORTANCE_DEFAULT),
     LIMIT_REACHED("limit-reached", "Limit reached by someone I support", NotificationManager.IMPORTANCE_HIGH),
     CHANGES("changes", "Changes by someone I support", NotificationManager.IMPORTANCE_DEFAULT),
     DAY_SUMMARY("day-summary", "Day summary", NotificationManager.IMPORTANCE_LOW),
@@ -136,22 +140,30 @@ class Notifications(
 
     val aboutPartners: BuddyNotifier = PartnerNotifications(board)
 
-    /** One notification per limit, so that a later hit replaces it and a lifted hit can remove it. */
-    override fun limitReached(hit: LimitHit) =
-        showReached(tag = hit.limitId.value, text = limitReachedText(hit.limitName, hit.budget))
+    /*
+     * There is one notification per limit or session. It moves on from the warning to the
+     * last warning to "limit reached", and it can be taken back when none of them applies.
+     */
 
-    override fun limitNoLongerReached(limitId: LimitId) = board.manager.cancel(limitId.value, MY_LIMIT_ID)
+    override fun limitReached(hit: LimitHit) =
+        showAbout(hit.limitId.value, Channel.MY_LIMITS, "Limit reached", limitReachedText(hit.limitName, hit.budget))
 
     override fun sessionUsedUp(session: Session) =
-        showReached(tag = session.id.value, text = limitReachedText(Session.NAME, session.length))
+        showAbout(session.id.value, Channel.MY_LIMITS, "Limit reached", limitReachedText(Session.NAME, session.length))
 
-    private fun showReached(
-        tag: String,
-        text: String,
-    ) {
-        val notification = board.builder(Channel.MY_LIMITS, "Limit reached", text).setAutoCancel(true).build()
-        board.manager.notify(tag, MY_LIMIT_ID, notification)
+    override fun warned(warning: UsageWarning) {
+        val channel = if (warning.level == UsageLevel.LAST_WARNING) Channel.MY_LAST_WARNING else Channel.MY_WARNING
+        showAbout(warning.subjectId, channel, warning.level.asText(), warningText(warning))
     }
+
+    override fun nothingToShowFor(subjectId: String) = board.manager.cancel(subjectId, MY_LIMIT_ID)
+
+    private fun showAbout(
+        subjectId: String,
+        channel: Channel,
+        title: String,
+        text: String,
+    ) = board.manager.notify(subjectId, MY_LIMIT_ID, board.builder(channel, title, text).setAutoCancel(true).build())
 
     /**
      * The permanent notification of the service that watches app usage. While no session
@@ -179,7 +191,14 @@ class Notifications(
             return
         }
         val session = running.session
-        val title = if (session.isUsedUp) "Session: limit reached" else "Session running"
+        val title =
+            if (running.level ==
+                UsageLevel.NORMAL
+            ) {
+                "Session running"
+            } else {
+                "Session: ${running.level.asText().lowercase()}"
+            }
         val notification =
             board
                 .builder(Channel.SESSION, title, usageText(running.used, session.length))

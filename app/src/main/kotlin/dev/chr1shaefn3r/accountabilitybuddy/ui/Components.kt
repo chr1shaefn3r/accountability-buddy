@@ -1,12 +1,15 @@
 package dev.chr1shaefn3r.accountabilitybuddy.ui
 
 import android.content.pm.PackageManager
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,6 +21,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -32,16 +36,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -182,3 +192,58 @@ fun TextInputDialog(
 }
 
 const val MAX_NAME_LENGTH = 30
+
+/**
+ * The colour that goes with a level: the theme's own colour while all is normal, orange
+ * for the warning, dark orange for the last warning, the theme's error colour at the end.
+ * The oranges are fixed, because the wallpaper colours of the theme have no orange; they
+ * are chosen to be readable on cards in the light and in the dark theme.
+ */
+@Composable
+fun levelColor(level: UsageLevel): Color {
+    val dark = isSystemInDarkTheme()
+    return when (level) {
+        UsageLevel.NORMAL -> MaterialTheme.colorScheme.primary
+        UsageLevel.WARNING -> if (dark) Color(WARNING_ON_DARK) else Color(WARNING_ON_LIGHT)
+        UsageLevel.LAST_WARNING -> if (dark) Color(LAST_WARNING_ON_DARK) else Color(LAST_WARNING_ON_LIGHT)
+        UsageLevel.REACHED -> MaterialTheme.colorScheme.error
+    }
+}
+
+private const val WARNING_ON_LIGHT = 0xFFA84D00
+private const val WARNING_ON_DARK = 0xFFFFB74D
+private const val LAST_WARNING_ON_LIGHT = 0xFF9A3412
+private const val LAST_WARNING_ON_DARK = 0xFFFF8A50
+
+/**
+ * A progress bar for a time budget, in the colour of its level, with a small vertical
+ * mark where the warning and the last warning begin.
+ */
+@Composable
+fun BudgetBar(
+    used: Duration,
+    budget: Duration,
+    level: UsageLevel,
+    modifier: Modifier = Modifier,
+) {
+    val fraction = (used.toMillis().toFloat() / budget.toMillis()).coerceIn(0f, 1f)
+    val markColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val rightToLeft = LocalLayoutDirection.current == LayoutDirection.Rtl
+    Box(modifier.fillMaxWidth().height(12.dp), contentAlignment = Alignment.Center) {
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier.fillMaxWidth(),
+            color = levelColor(level),
+            drawStopIndicator = {},
+        )
+        Canvas(Modifier.fillMaxSize()) {
+            UsageLevel.entries.filter { it.isWarning }.forEach {
+                val fromStart = size.width * it.fromPercent / PERCENT
+                val x = if (rightToLeft) size.width - fromStart else fromStart
+                drawLine(markColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 2.dp.toPx())
+            }
+        }
+    }
+}
+
+private const val PERCENT = 100f

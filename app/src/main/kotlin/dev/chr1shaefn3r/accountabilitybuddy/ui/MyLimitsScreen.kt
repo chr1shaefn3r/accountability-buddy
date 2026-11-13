@@ -23,7 +23,6 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +63,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Limit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageLevel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -275,30 +275,19 @@ private fun LimitCard(
     status: LimitStatus?,
     onClick: () -> Unit,
 ) {
-    val hit = status?.hit == true
-    val fraction = status?.let { (it.used.seconds.toFloat() / limit.budget.seconds).coerceIn(0f, 1f) } ?: 0f
+    val level = status?.level ?: UsageLevel.NORMAL
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(limit.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                if (hit) {
-                    Text(
-                        "Limit reached",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+                LevelLabel(level)
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 limit.apps.take(MAX_ICONS).forEach { AppIcon(it, size = 28.dp) }
             }
             Spacer(Modifier.height(12.dp))
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier.fillMaxWidth(),
-                color = if (hit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            )
+            BudgetBar(status?.used ?: Duration.ZERO, limit.budget, level)
             Spacer(Modifier.height(8.dp))
             Text(
                 status?.let { usageText(it.used, limit.budget) } ?: "Measuring today's usage…",
@@ -315,7 +304,6 @@ private fun SessionCard(
     onDelete: () -> Unit,
 ) {
     val session = status.session
-    val fraction = (status.used.seconds.toFloat() / session.length.seconds).coerceIn(0f, 1f)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp)) {
             Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -324,20 +312,10 @@ private fun SessionCard(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                if (session.isUsedUp) {
-                    Text(
-                        "Limit reached",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+                LevelLabel(status.level)
             }
             Spacer(Modifier.height(12.dp))
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
-                color = if (session.isUsedUp) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            )
+            BudgetBar(status.used, session.length, status.level, Modifier.padding(end = 8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     usageText(status.used, session.length),
@@ -354,6 +332,13 @@ private fun SessionCard(
             }
         }
     }
+}
+
+/** Says in words what the colour of the bar says: nothing while all is normal. */
+@Composable
+private fun LevelLabel(level: UsageLevel) {
+    if (level == UsageLevel.NORMAL) return
+    Text(level.asText(), style = MaterialTheme.typography.labelLarge, color = levelColor(level))
 }
 
 /** Asks how many minutes the session should last, with the usual lengths one tap away. */

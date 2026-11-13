@@ -1,5 +1,6 @@
 package dev.chr1shaefn3r.accountabilitybuddy.limits.application
 
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AnnouncedWarnings
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Day
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.ForegroundInterval
@@ -15,6 +16,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingHealth
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageSource
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageWarning
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,10 +74,16 @@ class FakeUsageSource : UsageSource {
     val intervals = mutableListOf<ForegroundInterval>()
     var accessGranted = true
 
+    /** Like the phone: an app that is still open counts until the moment of asking, not beyond. */
     override suspend fun foregroundIntervals(
         from: Instant,
         to: Instant,
-    ): List<ForegroundInterval>? = if (accessGranted) intervals.filter { it.start < to && it.end > from } else null
+    ): List<ForegroundInterval>? =
+        if (accessGranted) {
+            intervals.filter { it.start < to && it.end > from }.map { it.copy(end = minOf(it.end, to)) }
+        } else {
+            null
+        }
 }
 
 class FakeHealth : TrackingHealth {
@@ -87,6 +95,7 @@ class FakeHealth : TrackingHealth {
 class InMemoryLimitsMemory : LimitsMemory {
     override var lastClosedDay: Day? = null
     override var reportedProblems: Set<TrackingProblem> = emptySet()
+    override var announcedWarnings: AnnouncedWarnings = AnnouncedWarnings.NONE
 }
 
 class RecordingEvents : LimitsEvents {
@@ -95,6 +104,8 @@ class RecordingEvents : LimitsEvents {
     val closedDays = mutableListOf<DayClosed>()
     val liftedHits = mutableListOf<LimitId>()
     val usedUpSessions = mutableListOf<Session>()
+    val warnings = mutableListOf<UsageWarning>()
+    val liftedWarnings = mutableListOf<String>()
 
     override suspend fun limitHit(hit: LimitHit) {
         hits += hit
@@ -114,5 +125,13 @@ class RecordingEvents : LimitsEvents {
 
     override suspend fun sessionUsedUp(session: Session) {
         usedUpSessions += session
+    }
+
+    override suspend fun warned(warning: UsageWarning) {
+        warnings += warning
+    }
+
+    override suspend fun warningLifted(subjectId: String) {
+        liftedWarnings += subjectId
     }
 }

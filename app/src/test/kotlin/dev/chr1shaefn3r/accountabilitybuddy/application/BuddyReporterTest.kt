@@ -13,6 +13,8 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SenderNotifier
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageLevel
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageWarning
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 import kotlinx.coroutines.test.runTest
 import java.time.Duration
@@ -32,7 +34,8 @@ class BuddyReporterTest {
 
             override fun launchableApps(): List<InstalledApp> = emptyList()
         }
-    private val takenBack = mutableListOf<LimitId>()
+    private val takenBack = mutableListOf<String>()
+    private val warningsShownToSender = mutableListOf<UsageWarning>()
     private val usedUpShownToSender = mutableListOf<Session>()
     private val senderNotifier =
         object : SenderNotifier {
@@ -40,8 +43,12 @@ class BuddyReporterTest {
                 shownToSender += hit
             }
 
-            override fun limitNoLongerReached(limitId: LimitId) {
-                takenBack += limitId
+            override fun nothingToShowFor(subjectId: String) {
+                takenBack += subjectId
+            }
+
+            override fun warned(warning: UsageWarning) {
+                warningsShownToSender += warning
             }
 
             override fun sessionUsedUp(session: Session) {
@@ -80,11 +87,24 @@ class BuddyReporterTest {
         }
 
     @Test
+    fun `a warning is shown to the sender and never told to the buddies`() =
+        runTest {
+            val warning = UsageWarning("1", "Instagram", hour, Duration.ofMinutes(57), UsageLevel.LAST_WARNING)
+
+            reporter.warned(warning)
+            reporter.warningLifted("1")
+
+            assertEquals(listOf(warning), warningsShownToSender)
+            assertEquals(listOf("1"), takenBack)
+            assertEquals(emptyList(), told)
+        }
+
+    @Test
     fun `a lifted hit is taken back on the sender's phone only`() =
         runTest {
             reporter.hitLifted(LimitId("1"))
 
-            assertEquals(listOf(LimitId("1")), takenBack)
+            assertEquals(listOf("1"), takenBack)
             assertEquals(emptyList(), told)
         }
 
