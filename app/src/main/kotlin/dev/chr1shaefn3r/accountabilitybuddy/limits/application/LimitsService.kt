@@ -2,6 +2,7 @@ package dev.chr1shaefn3r.accountabilitybuddy.limits.application
 
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Day
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.ForegroundInterval
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.HitLog
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Limit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
@@ -9,6 +10,9 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsMemory
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionId
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingHealth
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Usage
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageSource
@@ -21,6 +25,7 @@ import kotlinx.coroutines.sync.withLock
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 /** A limit together with how much of it is used up today. [hit] is true while a hit of today stands. */
 data class LimitStatus(
@@ -29,10 +34,18 @@ data class LimitStatus(
     val hit: Boolean,
 )
 
+/** A session together with the time spent in limited apps since it started. */
+data class SessionStatus(
+    val session: Session,
+    val used: Duration,
+)
+
 /** The use cases of the Limits context. */
+@Suppress("TooManyFunctions")
 class LimitsService(
     private val limits: LimitRepository,
     private val hitLog: HitLog,
+    private val sessions: SessionRepository,
     private val usageSource: UsageSource,
     private val health: TrackingHealth,
     private val memory: LimitsMemory,
@@ -47,6 +60,11 @@ class LimitsService(
      * At hand at once, for showing it without waiting; every use case keeps it up to date.
      */
     val statuses: StateFlow<List<LimitStatus>?> = latestStatuses
+
+    private val latestSessions = MutableStateFlow<List<SessionStatus>>(emptyList())
+
+    /** Today's sessions that were not dismissed, newest first, as they were last worked out. */
+    val sessionStatuses: StateFlow<List<SessionStatus>> = latestSessions
 
     /** Creates or changes a limit. Buddies learn about every way in which it got weaker. */
     suspend fun save(limit: Limit) =
@@ -73,6 +91,38 @@ class LimitsService(
         }
 
     /**
+     * Starts a session of [length]. Returns false if there is nothing to count (no limits)
+     * or a session is already running: there is one session at a time.
+     */
+    suspend fun startSession(length: Duration): Boolean =
+        mutex.withLock {
+            closePastDays()
+            if (limits.all().isEmpty() || sessions.all().any { it.isRunning }) return@withLock false
+            sessions.save(Session(SessionId(UUID.randomUUID().toString()), length, clock.instant()))
+            refreshStatuses()
+            true
+        }
+
+    /** Stops a running session. What it had used by now stays; nobody is told. */
+    suspend fun stopSession(id: SessionId) =
+        mutex.withLock {
+            closePastDays()
+            checkToday()
+            val session = sessions.all().firstOrNull { it.id == id && it.isRunning } ?: return@withLock
+            val now = clock.instant()
+            sessions.save(session.stopped(now, usedBy(session, currentDay(), now)))
+            refreshStatuses()
+        }
+
+    /** Takes a session that is over out of the list. If it was used up, it still appears in the day summary. */
+    suspend fun dismissSession(id: SessionId) =
+        mutex.withLock {
+            val session = sessions.all().firstOrNull { it.id == id && !it.isRunning } ?: return@withLock
+            sessions.save(session.dismissed())
+            refreshStatuses()
+        }
+
+    /**
      * Brings everything up to date: reports tracking problems, closes days that are over
      * and detects limits hit today. Safe to call as often as needed.
      */
@@ -89,13 +139,29 @@ class LimitsService(
 
     private suspend fun refreshStatuses(): List<LimitStatus> {
         val today = currentDay()
-        val usage = usageOn(today) ?: Usage.NONE
+        val now = clock.instant()
+        val intervals = intervalsOn(today).orEmpty()
+        val usage = Usage.on(today, clock.zone, intervals)
         val hits = hitLog.hitsOn(today)
-        return limits
-            .all()
+        val allLimits = limits.all()
+        val limitedApps = allLimits.flatMap { it.apps }.toSet()
+        latestSessions.value =
+            sessions
+                .all()
+                .filterNot { it.dismissed }
+                .sortedByDescending { it.startedAt }
+                .map { SessionStatus(it, it.used(intervals, limitedApps, now)) }
+        return allLimits
             .map { limit -> LimitStatus(limit, usage.of(limit), hits.any { it.standsFor(limit) }) }
             .also { latestStatuses.value = it }
     }
+
+    /** The time [session] has counted on [day] until [until]. */
+    private suspend fun usedBy(
+        session: Session,
+        day: Day,
+        until: Instant,
+    ): Duration = session.used(intervalsOn(day).orEmpty(), limits.all().flatMap { it.apps }.toSet(), until)
 
     /** Today's hit of [limit], unless the limit was weakened since. */
     private suspend fun standingHit(limit: Limit): LimitHit? =
@@ -125,11 +191,31 @@ class LimitsService(
         var day = maxOf(lastClosed.next(), today.minusDays(MAX_DAYS_TO_CATCH_UP))
         while (day <= yesterday) {
             detectHits(day, day.end(clock.zone))
-            events.dayClosed(DayClosed.of(day, hitLog.hitsOn(day), usageOn(day) ?: Usage.NONE))
+            val closed = DayClosed.of(day, hitLog.hitsOn(day), usageOn(day) ?: Usage.NONE)
+            events.dayClosed(closed.copy(entries = closed.entries + endSessionsOf(day)))
             memory.lastClosedDay = day
             day = day.next()
         }
         hitLog.forgetBefore(today.minusDays(MAX_DAYS_TO_CATCH_UP))
+        sessions.forgetStartedBefore(today.start(clock.zone))
+    }
+
+    /** Stops the sessions still running at the end of [day] and accounts for those that were used up. */
+    private suspend fun endSessionsOf(day: Day): List<DayClosed.Entry> {
+        val dayEnd = day.end(clock.zone)
+        return sessions
+            .all()
+            .filter { Day.of(it.startedAt, clock.zone) == day }
+            .map {
+                if (it.isRunning) {
+                    it.stopped(dayEnd, usedBy(it, day, dayEnd)).also { ended ->
+                        sessions.save(ended)
+                    }
+                } else {
+                    it
+                }
+            }.filter { it.isUsedUp }
+            .map { DayClosed.entryFor(it, it.usedWhenStopped ?: it.length) }
     }
 
     private suspend fun checkToday() = detectHits(currentDay(), clock.instant())
@@ -140,18 +226,30 @@ class LimitsService(
     ) {
         val all = limits.all()
         if (all.isEmpty()) return
-        val usage = usageOn(day) ?: return
-        all.newHits(day, usage, hitLog.hitsOn(day), at).forEach {
+        val intervals = intervalsOn(day) ?: return
+        all.newHits(day, Usage.on(day, clock.zone, intervals), hitLog.hitsOn(day), at).forEach {
             hitLog.record(it)
             events.limitHit(it)
         }
+        val limitedApps = all.flatMap { it.apps }.toSet()
+        sessions
+            .all()
+            .filter { it.isRunning && !it.isUsedUp && Day.of(it.startedAt, clock.zone) == day }
+            .filter { it.used(intervals, limitedApps, at) >= it.length }
+            .forEach {
+                val usedUp = it.usedUp(at)
+                sessions.save(usedUp)
+                events.sessionUsedUp(usedUp)
+            }
     }
 
-    private suspend fun usageOn(day: Day): Usage? {
+    private suspend fun usageOn(day: Day): Usage? = intervalsOn(day)?.let { Usage.on(day, clock.zone, it) }
+
+    /** What the phone recorded for [day] so far, or null without usage access. */
+    private suspend fun intervalsOn(day: Day): List<ForegroundInterval>? {
         val zone = clock.zone
         val until = minOf(clock.instant(), day.end(zone))
-        val intervals = usageSource.foregroundIntervals(day.start(zone), until) ?: return null
-        return Usage.on(day, zone, intervals)
+        return usageSource.foregroundIntervals(day.start(zone), until)
     }
 
     private companion object {

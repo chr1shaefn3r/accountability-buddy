@@ -10,19 +10,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -48,11 +57,16 @@ import dev.chr1shaefn3r.accountabilitybuddy.R
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.Pairing
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PairingState
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.PartnerRole
+import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.notifications.Notifications
 import dev.chr1shaefn3r.accountabilitybuddy.limits.application.LimitStatus
+import dev.chr1shaefn3r.accountabilitybuddy.limits.application.SessionStatus
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Limit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.time.Duration
 
 private const val REFRESH_MILLIS = 10_000L
 private const val MAX_ICONS = 8
@@ -89,6 +103,9 @@ fun MyLimitsScreen(
             ?: statuses?.map { it.limit to it }.orEmpty()
     val problems =
         remember(resumes, limits) { if (limits.isNullOrEmpty()) emptySet() else app.phone.currentProblems() }
+    val scope = rememberCoroutineScope()
+    val sessions by app.limits.sessionStatuses.collectAsStateWithLifecycle()
+    var startingSession by rememberSaveable { mutableStateOf(false) }
 
     // Before the first limit, the sender role needs usage access and, ideally, no battery restrictions.
     var setupStep by rememberSaveable { mutableStateOf(SetupStep.NONE) }
@@ -141,10 +158,38 @@ fun MyLimitsScreen(
                     )
                 }
             }
+            // A session needs limits, whose apps it counts, and there is one session at a time.
+            if (cards.isNotEmpty() && sessions.none { it.session.isRunning }) {
+                item(key = "start-session") {
+                    FilledTonalButton(onClick = { startingSession = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Start session")
+                    }
+                }
+            }
+            items(sessions, key = { "session-${it.session.id.value}" }) { status ->
+                SessionCard(
+                    status = status,
+                    onStop = { scope.launch { app.limits.stopSession(status.session.id) } },
+                    onDelete = { scope.launch { app.limits.dismissSession(status.session.id) } },
+                )
+            }
             items(cards, key = { it.first.id.value }) { (limit, status) ->
                 LimitCard(limit, status, onClick = { onEditLimit(limit.id) })
             }
         }
+    }
+
+    if (startingSession) {
+        StartSessionDialog(
+            onStart = { length ->
+                startingSession = false
+                scope.launch {
+                    app.limits.startSession(length)
+                    app.wakeUp()
+                }
+            },
+            onDismiss = { startingSession = false },
+        )
     }
 
     when (setupStep) {
@@ -262,3 +307,98 @@ private fun LimitCard(
         }
     }
 }
+
+@Composable
+private fun SessionCard(
+    status: SessionStatus,
+    onStop: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val session = status.session
+    val fraction = (status.used.seconds.toFloat() / session.length.seconds).coerceIn(0f, 1f)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp)) {
+            Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    sessionTitle(session),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (session.isUsedUp) {
+                    Text(
+                        "Limit reached",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+                color = if (session.isUsedUp) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    usageText(status.used, session.length),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (session.isRunning) {
+                    TextButton(onClick = onStop) { Text("Stop session") }
+                } else {
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete session")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Asks how many minutes the session should last, with the usual lengths one tap away. */
+@Composable
+private fun StartSessionDialog(
+    onStart: (Duration) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var minutes by rememberSaveable { mutableStateOf("") }
+    val length =
+        minutes
+            .toLongOrNull()
+            ?.let(
+                Duration::ofMinutes,
+            )?.takeIf { it in Session.MIN_LENGTH..Session.MAX_LENGTH }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Start a session") },
+        text = {
+            Column {
+                Text(
+                    "A session counts the time you spend in the apps of your limits from now on. " +
+                        "When its minutes are used up, that counts as a limit reached.",
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = minutes,
+                    onValueChange = { typed -> minutes = typed.filter(Char::isDigit).take(MAX_MINUTE_DIGITS) },
+                    label = { Text("Minutes") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Notifications.SESSION_PRESETS_MINUTES.forEach {
+                        SuggestionChip(onClick = { minutes = it.toString() }, label = { Text("$it min") })
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { length?.let(onStart) }, enabled = length != null) { Text("Start") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+private const val MAX_MINUTE_DIGITS = 4

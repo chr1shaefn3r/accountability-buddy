@@ -10,6 +10,8 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsMemory
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingHealth
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageSource
@@ -51,6 +53,21 @@ class InMemoryHitLog : HitLog {
     }
 }
 
+class InMemorySessions : SessionRepository {
+    val sessions = mutableListOf<Session>()
+
+    override suspend fun all(): List<Session> = sessions.toList()
+
+    override suspend fun save(session: Session) {
+        sessions.removeAll { it.id == session.id }
+        sessions += session
+    }
+
+    override suspend fun forgetStartedBefore(instant: Instant) {
+        sessions.removeAll { it.startedAt < instant }
+    }
+}
+
 class FakeUsageSource : UsageSource {
     val intervals = mutableListOf<ForegroundInterval>()
     var accessGranted = true
@@ -77,6 +94,7 @@ class RecordingEvents : LimitsEvents {
     val weakenings = mutableListOf<Weakening>()
     val closedDays = mutableListOf<DayClosed>()
     val liftedHits = mutableListOf<LimitId>()
+    val usedUpSessions = mutableListOf<Session>()
 
     override suspend fun limitHit(hit: LimitHit) {
         hits += hit
@@ -92,5 +110,9 @@ class RecordingEvents : LimitsEvents {
 
     override suspend fun hitLifted(limitId: LimitId) {
         liftedHits += limitId
+    }
+
+    override suspend fun sessionUsedUp(session: Session) {
+        usedUpSessions += session
     }
 }

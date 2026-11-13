@@ -25,6 +25,7 @@ The system has two parts:
 | **Limit** | A daily time budget for one or more apps. |
 | **Pairing** | An encrypted link between one sender and one buddy. |
 | **Day** | A calendar day in the sender phone's local time zone, 00:00 to 24:00. |
+| **Session** | A break the sender allows themselves: a number of minutes in the apps of their limits, counted from the moment the session starts. |
 
 One installation can be a sender and a buddy at the same time. A sender can have
 several buddies, and a buddy can support several senders. Two friends can therefore
@@ -95,6 +96,59 @@ encrypted message:
 
 Changes that tighten the setup (new limit, shorter duration, added app) are silent.
 All changes take effect immediately; there is no approval step and no cool-down.
+
+### 3.6 Sessions
+
+A session is for the moment the sender takes a break and does not want it to turn into
+endless scrolling. It is a one-off time budget on top of the daily limits.
+
+**Starting**
+
+- A session is started with its **length in whole minutes** (1 minute to 24 hours,
+  entered as minutes, never as hours and minutes).
+- It can be started on "My limits" and from the permanent "Watching your limits"
+  notification, which offers one button per usual length: 5, 15 and 30 minutes.
+- There is **one session at a time**. While one is running, no other can be started.
+- A session needs at least one limit, because the apps of the limits are what it counts.
+
+**Counting**
+
+- A session counts the time spent, from its start, in **any app that belongs to any
+  limit**, added up. Time before the start does not count, nor do apps without a limit.
+- The same time also counts towards the daily limits of those apps. A session changes
+  nothing about the limits.
+- If apps are added to or removed from limits while a session runs, the session counts
+  the apps as they are at each look.
+
+**Used up**
+
+- When a session has counted as much time as its length, this **counts as a limit
+  reached**: the sender gets a local notification ("Session: 15m limit reached") and
+  every buddy is told, exactly as for a limit (3.3).
+- The session then **keeps running and counting**, so that the overrun is visible
+  ("25m of 15m"), until it is stopped or the day ends. It is reported only once.
+
+**Ending**
+
+- A running session is **stopped** by the sender, on "My limits" or with the "Stop"
+  button of the session's notification, or it ends by itself at midnight.
+- A session that is over keeps the time it had counted and stays on "My limits" until
+  the end of the day, marked as ended. The sender can **delete** it from the list
+  earlier. A running session cannot be deleted; it is stopped first.
+- At the midnight reset (3.4) all sessions are gone.
+
+**What buddies learn**
+
+- Only that a session was used up, as a reached limit named "Session".
+- A session that was used up appears in the **day summary** with its length and all it
+  counted ("Session: 40m of 15m"), also if the sender deleted it from the list.
+- Starting, stopping and deleting a session is private. None of it is a weakening (3.5).
+
+**Notifications on the sender's phone**
+
+- While a session runs, a separate silent notification shows it with the time counted
+  so far ("7m of 15m") and a "Stop" button. It disappears when the session is over.
+- While a session runs, the permanent notification does not offer to start one.
 
 ## 4. Buddy features
 
@@ -310,6 +364,11 @@ full-screen page with a back arrow. Navigation is never more than two levels dee
     opens **My buddies**.
   - Below, one card per limit: name, app icons, a progress bar, and "45m of 1h".
     A limit that was hit is shown in the theme's error colour.
+  - Above the limits, the sessions of the day (3.6): a "Start session" button while
+    none is running, which asks for the minutes and offers the usual lengths as chips;
+    the running session as a card with a progress bar, "7m of 15m" and "Stop session";
+    sessions that are over as cards marked "ended" with a delete button. A session that
+    was used up shows "Limit reached", like a limit.
   - A floating action button adds a limit.
 - **Edit limit**: a full-screen dialog in Material terms. The top bar has a close icon,
   the title and the "Save" action, so that Save stays visible while the keyboard is open.
@@ -336,8 +395,8 @@ full-screen page with a back arrow. Navigation is never more than two levels dee
 - **Problems are visible.** If tracking does not work (missing permission, service
   stopped), a banner on **My limits** says so and offers the fix.
 - **Notification channels.** Each kind of notification has its own Android channel
-  (limit reached, day summary, changes by the sender, silence alert, tracking
-  service), so users can tune sound and visibility in the system settings.
+  (limit reached, day summary, changes by the sender, silence alert, running session,
+  tracking service), so users can tune sound and visibility in the system settings.
 - **Accessibility.** Screen-reader labels on every control, touch targets of at least
   48 dp, layouts that hold up at the largest font size, and information never
   conveyed by colour alone.
@@ -397,16 +456,21 @@ The README has the commands for each step.
 ### 11.1 Domain-driven design
 
 - The terms of section 2 are the **ubiquitous language**. Code, tests and user
-  interface use exactly these words (`Limit`, `Pairing`, `Buddy`, `Day`, ...).
-- Two bounded contexts: **Limits** (limits, usage, the day) and **Buddies** (pairing,
-  messages, history). They talk to each other through domain events such as
-  `LimitHit`, `LimitWeakened` and `DayClosed`.
+  interface use exactly these words (`Limit`, `Session`, `Pairing`, `Buddy`, `Day`, ...).
+- Two bounded contexts: **Limits** (limits, sessions, usage, the day) and **Buddies**
+  (pairing, messages, history). They talk to each other through domain events such as
+  `LimitHit`, `SessionUsedUp`, `LimitWeakened` and `DayClosed`.
+- The aggregates of the Limits context are `Limit` (a daily budget for apps, with the
+  hits of the day) and `Session` (a one-off budget from a moment on). A session does
+  not belong to a limit: it refers to "the apps of all limits" and is evaluated against
+  the same usage. The Buddies context does not know sessions; a used-up session reaches
+  it as a reached limit.
 - The **domain layer is plain Kotlin** with no Android, Firebase, Room or Tink imports.
   Everything outside (usage statistics, clock, storage, push, encryption, relay) is
   reached through interfaces owned by the domain (ports) and implemented in an
   infrastructure layer (adapters).
-- Aggregates guard their own rules, for example "a limit has at least one app" or
-  "a limit triggers once per day". Domain objects are immutable; invalid states cannot
+- Aggregates guard their own rules, for example "a limit has at least one app",
+  "a limit triggers once per day" or "only a session that is over can be dismissed". Domain objects are immutable; invalid states cannot
   be constructed.
 - Time is always injected through a clock port, never read directly, so that midnight
   and time-zone behaviour is testable.
@@ -490,3 +554,6 @@ None at the moment.
 | Design language | Material Design 3 with dynamic colour, stock components only. |
 | Push address | The Firebase installation ID, as Firebase has deprecated registration tokens. |
 | QR scanning | Google code scanner (Play services) instead of an own camera screen. No camera permission. |
+| Session used up | Reported once like a reached limit; the session keeps counting until stopped or midnight. |
+| Starting a session from the notification | Three preset buttons: 5, 15 and 30 minutes. |
+| What a buddy learns about sessions | Only that one was used up, and its overrun in the day summary. |

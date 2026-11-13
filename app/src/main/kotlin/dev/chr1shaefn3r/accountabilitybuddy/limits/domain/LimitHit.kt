@@ -48,6 +48,12 @@ data class DayClosed(
     )
 
     companion object {
+        /** How a session that was used up appears in the account of its day. */
+        fun entryFor(
+            session: Session,
+            used: Duration,
+        ): Entry = Entry(Session.NAME, session.length, maxOf(used, session.length))
+
         fun of(
             day: Day,
             hits: List<LimitHit>,

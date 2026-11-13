@@ -26,6 +26,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomLimit
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomOutbox
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomPairings
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomReceivedLog
+import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.StoredSessions
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.Vault
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.push.FcmAddressProvider
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.push.HttpRelay
@@ -114,7 +115,7 @@ open class AccountabilityBuddyApp : Application() {
                 relay = createRelay(),
                 received = RoomReceivedLog(database.messages()),
                 history = history,
-                notifier = notifications,
+                notifier = notifications.aboutPartners,
                 profile = preferences,
                 addressProvider = createAddressProvider(),
                 crypto = TinkCryptography(),
@@ -127,6 +128,7 @@ open class AccountabilityBuddyApp : Application() {
         LimitsService(
             limits = roomLimits,
             hitLog = roomLimits,
+            sessions = StoredSessions(this),
             usageSource = phone,
             health = phone,
             memory = preferences,

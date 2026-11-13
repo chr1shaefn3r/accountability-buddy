@@ -12,6 +12,8 @@ import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.RoomPairi
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.persistence.Vault
 import kotlinx.coroutines.launch
 import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -23,18 +25,27 @@ class TestApp : AccountabilityBuddyApp() {
     val network = Network()
     val address = PushAddress("installation-id-of-this-phone")
 
-    /** It is always noon today, so that no test depends on the time of day it runs at. */
+    /** How far the test has moved the clock past noon. */
+    var clockOffset: Duration = Duration.ZERO
+
+    /** It is noon today unless a test moves the clock, so that no test depends on the time of day it runs at. */
     override val clock: Clock =
-        ZoneId.systemDefault().let {
-            Clock.fixed(
+        object : Clock() {
+            private val zone = ZoneId.systemDefault()
+            private val noon =
                 LocalDate
-                    .now(it)
+                    .now(zone)
                     .atTime(NOON, 0)
-                    .atZone(it)
-                    .toInstant(),
-                it,
-            )
+                    .atZone(zone)
+                    .toInstant()
+
+            override fun instant(): Instant = noon + clockOffset
+
+            override fun getZone(): ZoneId = zone
+
+            override fun withZone(zone: ZoneId): Clock = this
         }
+
     private val vault =
         object : Vault {
             override fun protect(secret: ByteArray): ByteArray = secret.reversedArray()

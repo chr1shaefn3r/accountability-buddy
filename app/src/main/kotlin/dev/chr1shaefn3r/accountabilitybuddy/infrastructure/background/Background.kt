@@ -24,11 +24,15 @@ import androidx.work.WorkerParameters
 import dev.chr1shaefn3r.accountabilitybuddy.AccountabilityBuddyApp
 import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.DeliverySchedule
 import dev.chr1shaefn3r.accountabilitybuddy.infrastructure.notifications.Notifications
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.Clock
@@ -100,9 +104,20 @@ class TrackingService : Service() {
         val app = application as AccountabilityBuddyApp
         startForeground(
             Notifications.TRACKING_ID,
-            app.notifications.tracking(),
+            app.notifications.tracking(offerSessions = false),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
         )
+        // The notifications follow the sessions: a running one is shown with a way to stop it,
+        // and the permanent notification offers to start one only while none is running.
+        val running = app.limits.sessionStatuses.map { statuses -> statuses.firstOrNull { it.session.isRunning } }
+        scope.launch { running.collect { app.notifications.showSession(it) } }
+        scope.launch {
+            running.map { it == null }.distinctUntilChanged().collect {
+                app.notifications.showTracking(
+                    offerSessions = it,
+                )
+            }
+        }
         val power = getSystemService(PowerManager::class.java)
         scope.launch {
             var wasInteractive = true
@@ -128,6 +143,7 @@ class TrackingService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        (application as AccountabilityBuddyApp).notifications.showSession(null)
         super.onDestroy()
     }
 
@@ -143,6 +159,52 @@ class TrackingService : Service() {
                 // Android forbids starting from the background; the next app start or alarm will do it.
                 false
             }
+    }
+}
+
+/** Starts and stops sessions from the buttons on the notifications. */
+class SessionReceiver : BroadcastReceiver() {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
+        val app = context.applicationContext as AccountabilityBuddyApp
+        val minutes = intent.getLongExtra(MINUTES, 0)
+        val sessionId = intent.getStringExtra(SESSION_ID)
+        when {
+            intent.action == START && Duration.ofMinutes(minutes) in Session.MIN_LENGTH..Session.MAX_LENGTH ->
+                app.background.launch { app.limits.startSession(Duration.ofMinutes(minutes)) }
+            intent.action == STOP && sessionId != null ->
+                app.background.launch { app.limits.stopSession(SessionId(sessionId)) }
+        }
+    }
+
+    companion object {
+        private const val START = "dev.chr1shaefn3r.accountabilitybuddy.START_SESSION"
+        private const val STOP = "dev.chr1shaefn3r.accountabilitybuddy.STOP_SESSION"
+        private const val MINUTES = "minutes"
+        private const val SESSION_ID = "sessionId"
+        private const val FLAGS = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+
+        fun startIntent(
+            context: Context,
+            minutes: Int,
+        ): PendingIntent {
+            val intent =
+                Intent(
+                    context,
+                    SessionReceiver::class.java,
+                ).setAction(START).putExtra(MINUTES, minutes.toLong())
+            return PendingIntent.getBroadcast(context, minutes, intent, FLAGS)
+        }
+
+        fun stopIntent(
+            context: Context,
+            id: SessionId,
+        ): PendingIntent {
+            val intent = Intent(context, SessionReceiver::class.java).setAction(STOP).putExtra(SESSION_ID, id.value)
+            return PendingIntent.getBroadcast(context, 0, intent, FLAGS)
+        }
     }
 }
 

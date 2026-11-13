@@ -26,6 +26,15 @@ interface HitLog {
     suspend fun forgetBefore(day: Day)
 }
 
+/** Keeps the sessions of the current day. */
+interface SessionRepository {
+    suspend fun all(): List<Session>
+
+    suspend fun save(session: Session)
+
+    suspend fun forgetStartedBefore(instant: Instant)
+}
+
 /** The phone's record of which app was in the foreground when. */
 interface UsageSource {
     /** Foreground intervals overlapping the given time span, or null if usage access is missing. */
@@ -56,6 +65,9 @@ interface LimitsEvents {
 
     /** A hit of today no longer stands: the limit was weakened beyond it or deleted. */
     suspend fun hitLifted(limitId: LimitId)
+
+    /** The time of a session is used up. This counts like a limit that was hit. */
+    suspend fun sessionUsedUp(session: Session)
 }
 
 /** Tells the owner of this phone about their own limits. */
@@ -64,6 +76,8 @@ interface SenderNotifier {
 
     /** Takes back what [limitReached] showed for this limit. */
     fun limitNoLongerReached(limitId: LimitId)
+
+    fun sessionUsedUp(session: Session)
 }
 
 /** Knows the apps installed on this phone. */

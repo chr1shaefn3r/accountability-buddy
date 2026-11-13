@@ -9,6 +9,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SenderNotifier
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 
@@ -28,6 +29,13 @@ class BuddyReporter(
 
     /** Only the sender's own notification is taken back. Buddies keep what they were told: it happened. */
     override suspend fun hitLifted(limitId: LimitId) = senderNotifier.limitNoLongerReached(limitId)
+
+    /** A used up session counts like a reached limit, on the sender's phone and for the buddies. */
+    override suspend fun sessionUsedUp(session: Session) {
+        senderNotifier.sessionUsedUp(session)
+        val at = session.usedUpAt ?: session.startedAt
+        tellBuddies(BuddyMessage.LimitHit(Session.NAME, session.length.toMinutes(), at.epochSecond))
+    }
 
     override suspend fun setupWeakened(weakening: Weakening) {
         tellBuddies(

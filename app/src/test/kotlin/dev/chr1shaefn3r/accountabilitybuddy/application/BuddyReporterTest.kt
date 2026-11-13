@@ -10,6 +10,8 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.InstalledApp
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SenderNotifier
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 import kotlinx.coroutines.test.runTest
@@ -31,6 +33,7 @@ class BuddyReporterTest {
             override fun launchableApps(): List<InstalledApp> = emptyList()
         }
     private val takenBack = mutableListOf<LimitId>()
+    private val usedUpShownToSender = mutableListOf<Session>()
     private val senderNotifier =
         object : SenderNotifier {
             override fun limitReached(hit: LimitHit) {
@@ -39,6 +42,10 @@ class BuddyReporterTest {
 
             override fun limitNoLongerReached(limitId: LimitId) {
                 takenBack += limitId
+            }
+
+            override fun sessionUsedUp(session: Session) {
+                usedUpShownToSender += session
             }
         }
     private val reporter = BuddyReporter(senderNotifier, apps, told::add)
@@ -55,6 +62,21 @@ class BuddyReporterTest {
 
             assertEquals(listOf(hit), shownToSender)
             assertEquals(listOf<BuddyMessage>(BuddyMessage.LimitHit("Instagram", 60, at.epochSecond)), told)
+        }
+
+    @Test
+    fun `a used up session is shown to the sender and told to the buddies like a reached limit`() =
+        runTest {
+            val started = Instant.parse("2026-11-12T20:00:00Z")
+            val session = Session(SessionId("1"), Duration.ofMinutes(15), started, usedUpAt = started.plusSeconds(1200))
+
+            reporter.sessionUsedUp(session)
+
+            assertEquals(listOf(session), usedUpShownToSender)
+            assertEquals(
+                listOf<BuddyMessage>(BuddyMessage.LimitHit("Session", 15, started.plusSeconds(1200).epochSecond)),
+                told,
+            )
         }
 
     @Test

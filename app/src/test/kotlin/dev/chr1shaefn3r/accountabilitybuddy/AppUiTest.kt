@@ -30,6 +30,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Limit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.testing.MutableClock
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.runner.RunWith
@@ -57,7 +58,17 @@ class AppUiTest {
     private val video = AppId("com.example.video")
     private val videoLimit = Limit(LimitId("video"), "Video", Duration.ofHours(1), setOf(video))
 
-    private fun onboard() = runBlocking { app.buddies.changeDisplayName("Alex") }
+    /**
+     * Calls into the app the way the app itself does: off the thread that draws the screen.
+     * Blocking that thread while the screen waits to continue on it would stop both for good.
+     */
+    private fun <T> inApp(block: suspend () -> T): T {
+        val result = app.background.async { block() }
+        waitFor("the app to finish what the test asked for") { result.isCompleted }
+        return runBlocking { result.await() }
+    }
+
+    private fun onboard() = inApp { app.buddies.changeDisplayName("Alex") }
 
     private fun launch() {
         ActivityScenario.launch(MainActivity::class.java)
@@ -87,26 +98,27 @@ class AppUiTest {
     private fun click(text: String) = compose.onAllNodesWithText(text).onFirst().performClick()
 
     /** Makes Sam a confirmed buddy of the app's user. */
-    private fun samBecomesBuddy() =
-        runBlocking {
+    private fun samBecomesBuddy() {
+        inApp {
             val code = app.buddies.invite()
             sam.buddies.requestPairing(code, "Sam")
             app.network.settle()
             app.buddies.confirm(code.pairingId)
-            waitFor("Sam to learn about the confirmation") {
-                runBlocking { sam.onlyPairing().state == PairingState.ACTIVE }
-            }
         }
+        waitFor("Sam to learn about the confirmation") {
+            runBlocking { sam.onlyPairing().state == PairingState.ACTIVE }
+        }
+    }
 
     /** Makes the app's user a confirmed buddy of Sam. */
-    private fun userBecomesBuddyOfSam() =
-        runBlocking {
-            val code = sam.buddies.invite()
-            app.buddies.requestPairing(code, "Alex")
-            waitFor("the request to reach Sam") { runBlocking { sam.pairings.all().isNotEmpty() } }
+    private fun userBecomesBuddyOfSam() {
+        val code = inApp { sam.buddies.invite().also { app.buddies.requestPairing(it, "Alex") } }
+        waitFor("the request to reach Sam") { runBlocking { sam.pairings.all().isNotEmpty() } }
+        inApp {
             sam.buddies.confirm(code.pairingId)
             app.network.settle()
         }
+    }
 
     @Test
     fun `the first start leads through the introduction to an empty home`() {
@@ -157,7 +169,7 @@ class AppUiTest {
         onboard()
         grantUsageAccess()
         videoWasUsedFor(Duration.ofMinutes(2))
-        runBlocking { app.limits.save(videoLimit) }
+        inApp { app.limits.save(videoLimit) }
 
         launch()
 
@@ -173,17 +185,86 @@ class AppUiTest {
         grantUsageAccess()
         videoWasUsedFor(Duration.ofMinutes(2))
         val oneMinute = videoLimit.copy(budget = Duration.ofMinutes(1))
-        runBlocking { app.limits.save(oneMinute) }
+        inApp { app.limits.save(oneMinute) }
         launch()
         waitForText("2m of 1m")
         waitForText("Limit reached")
         assertEquals(listOf<String?>("Video: 1m limit reached"), shownNotifications())
 
-        runBlocking { app.limits.save(oneMinute.copy(budget = Duration.ofMinutes(10))) }
+        inApp { app.limits.save(oneMinute.copy(budget = Duration.ofMinutes(10))) }
 
         waitForText("2m of 10m")
         waitFor("\"Limit reached\" to disappear") { noText("Limit reached") }
         assertEquals(emptyList(), shownNotifications())
+    }
+
+    @Test
+    fun `a session is started, counts, is stopped and deleted on my limits`() {
+        onboard()
+        grantUsageAccess()
+        inApp { app.limits.save(videoLimit) }
+        launch()
+        waitForText("Video")
+
+        click("Start session")
+        waitForText("Start a session")
+        compose.onNodeWithText("Start").assertIsNotEnabled()
+        compose.onNodeWithText("Minutes").performTextInput("15")
+        click("Start")
+
+        waitForText("0m of 15m")
+        assertTrue(noText("Start session"), "there is one session at a time")
+        click("Stop session")
+        waitForText("Session (ended)")
+        waitForText("Start session")
+        compose.onNodeWithContentDescription("Delete session").performClick()
+        waitFor("the session to disappear") { noText("Session (ended)") }
+    }
+
+    @Test
+    fun `a session can be started with one of the usual lengths`() {
+        onboard()
+        grantUsageAccess()
+        inApp { app.limits.save(videoLimit) }
+        launch()
+        waitForText("Video")
+
+        click("Start session")
+        click("30 min")
+        click("Start")
+
+        waitForText("0m of 30m")
+    }
+
+    @Test
+    fun `a session whose time is used up says limit reached and notifies`() {
+        onboard()
+        grantUsageAccess()
+        inApp {
+            app.limits.save(videoLimit)
+            app.limits.startSession(Duration.ofMinutes(1))
+        }
+        launch()
+        waitForText("0m of 1m")
+        assertTrue(noText("Limit reached"))
+
+        // The session started at noon; the video app is then used for two minutes.
+        app.clockOffset = Duration.ofMinutes(3)
+        videoWasUsedFor(Duration.ofMinutes(2))
+        inApp { app.limits.check() }
+
+        waitForText("2m of 1m")
+        waitForText("Limit reached")
+        assertEquals(listOf<String?>("Session: 1m limit reached"), shownNotifications())
+    }
+
+    @Test
+    fun `without a limit no session is offered`() {
+        onboard()
+        launch()
+
+        waitForText("No buddy yet — add one")
+        assertTrue(noText("Start session"))
     }
 
     @Test
@@ -225,7 +306,7 @@ class AppUiTest {
         click("Save")
 
         waitFor("the limit to be saved") { runBlocking { app.limitRepository.all().isNotEmpty() } }
-        val saved = runBlocking { app.limitRepository.all().single() }
+        val saved = inApp { app.limitRepository.all().single() }
         assertEquals("Evening videos", saved.name)
         assertEquals(Duration.ofHours(1), saved.budget)
         assertEquals(setOf(video), saved.apps)
@@ -239,7 +320,7 @@ class AppUiTest {
         grantUsageAccess()
         installLauncherApp(video, "Video Player")
         installLauncherApp(music, "Music Box")
-        runBlocking { app.limits.save(videoLimit) }
+        inApp { app.limits.save(videoLimit) }
         launch()
 
         click("Video")
@@ -302,7 +383,7 @@ class AppUiTest {
         onboard()
         grantUsageAccess()
         samBecomesBuddy()
-        runBlocking { app.limits.save(videoLimit) }
+        inApp { app.limits.save(videoLimit) }
         launch()
         waitForText("1 buddy")
 
@@ -326,7 +407,7 @@ class AppUiTest {
         waitForText("A buddy never sees your list of limits")
         click("Add buddy")
         waitForText("Valid for")
-        runBlocking {
+        inApp {
             val invitation = app.invitations.current()!!
             sam.buddies.requestPairing(invitation.code(app.address, "Alex"), "Sam")
             app.network.settle()
@@ -353,7 +434,7 @@ class AppUiTest {
     fun `supporting shows the latest news and lets the buddy subscribe to the day summary`() {
         onboard()
         userBecomesBuddyOfSam()
-        runBlocking {
+        inApp {
             sam.buddies.tellBuddies(BuddyMessage.LimitHit("Instagram", 60, app.clock.instant().epochSecond))
             app.network.settle()
         }

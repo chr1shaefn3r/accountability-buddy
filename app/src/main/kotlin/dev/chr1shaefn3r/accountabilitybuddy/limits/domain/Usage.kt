@@ -27,13 +27,18 @@ class Usage private constructor(
             day: Day,
             zone: ZoneId,
             intervals: List<ForegroundInterval>,
+        ): Usage = between(day.start(zone), day.end(zone), intervals)
+
+        /** Sums up [intervals], counting only the parts that lie between [from] and [to]. */
+        fun between(
+            from: Instant,
+            to: Instant,
+            intervals: List<ForegroundInterval>,
         ): Usage {
-            val dayStart = day.start(zone)
-            val dayEnd = day.end(zone)
             val perApp = mutableMapOf<AppId, Duration>()
             for (interval in intervals) {
-                val start = maxOf(interval.start, dayStart)
-                val end = minOf(interval.end, dayEnd)
+                val start = maxOf(interval.start, from)
+                val end = minOf(interval.end, to)
                 if (end > start) perApp.merge(interval.app, Duration.between(start, end), Duration::plus)
             }
             return Usage(perApp)
