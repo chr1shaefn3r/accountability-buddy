@@ -1,5 +1,6 @@
 package dev.chr1shaefn3r.accountabilitybuddy.ui
 
+import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageLevel
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageWarning
@@ -34,3 +35,17 @@ fun warningText(warning: UsageWarning): String {
 
 /** What a session is called in the list: "Session" while it runs, "Session (ended)" afterwards. */
 fun sessionTitle(session: Session): String = if (session.isRunning) Session.NAME else "${Session.NAME} (ended)"
+
+/**
+ * What a buddy reads about a reached limit: whether the sender is still going, or stopped
+ * and with how much in total. A message that does not say how it went on only states the limit.
+ */
+fun reportText(hit: BuddyMessage.LimitHit): String {
+    val used = hit.used ?: return limitReachedText(hit.limitName, hit.budget)
+    val limit = hit.budget.asText()
+    return when {
+        hit.stillGoing == true -> "${hit.limitName}: over the $limit limit and still going, ${used.asText()} so far"
+        used > hit.budget -> "${hit.limitName}: went over the $limit limit, ${used.asText()} in total"
+        else -> "${hit.limitName}: reached the $limit limit and stopped"
+    }
+}

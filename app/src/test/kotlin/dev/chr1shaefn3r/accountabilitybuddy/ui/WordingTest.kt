@@ -27,6 +27,26 @@ class WordingTest {
     }
 
     @Test
+    fun `a report says whether the sender is still going or stopped, and with how much`() {
+        assertEquals(
+            "Instagram: over the 1h limit and still going, 1h 12m so far",
+            BuddyMessage.LimitHit("Instagram", 60, 0, usedMinutes = 72, stillGoing = true).asText(),
+        )
+        assertEquals(
+            "Instagram: went over the 1h limit, 1h 3m in total",
+            BuddyMessage.LimitHit("Instagram", 60, 0, usedMinutes = 63, stillGoing = false).asText(),
+        )
+        assertEquals(
+            "Instagram: reached the 1h limit and stopped",
+            BuddyMessage.LimitHit("Instagram", 60, 0, usedMinutes = 60, stillGoing = false).asText(),
+        )
+        assertEquals(
+            "Session: over the 15m limit and still going, 18m so far",
+            BuddyMessage.LimitHit("Session", 15, 0, usedMinutes = 18, stillGoing = true).asText(),
+        )
+    }
+
+    @Test
     fun `weakenings say what changed`() {
         assertEquals(
             "Instagram: limit raised from 1h to 1h 30m",

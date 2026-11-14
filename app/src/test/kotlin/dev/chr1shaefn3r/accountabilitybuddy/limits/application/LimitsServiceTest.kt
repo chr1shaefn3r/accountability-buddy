@@ -25,7 +25,8 @@ class LimitsServiceTest {
     private val health = FakeHealth()
     private val memory = InMemoryLimitsMemory()
     private val events = RecordingEvents()
-    private val service = LimitsService(limits, hitLog, InMemorySessions(), usage, health, memory, events, clock)
+    private val service =
+        LimitsService(limits, hitLog, InMemorySessions(), usage, health, memory, events, RecordingWakeUp(), clock)
 
     private val instagram = AppId("instagram")
     private val tiktok = AppId("tiktok")

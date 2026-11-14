@@ -58,16 +58,39 @@ hold each other accountable with the same app.
 
 ### 3.3 When a limit is hit
 
-- The sender gets a local notification ("Social Media: 1h limit reached").
-- Every buddy is sent an encrypted **limit-hit** message.
-- Each limit triggers at most once per day. Further use is not reported instantly, but
-  the final total appears in the day summary.
+- The sender gets a local notification at once ("Social Media: 1h limit reached").
+- The buddies are **not told at once**. It makes a difference whether the sender just
+  finished what they were doing or went on regardless, so the buddies are told a
+  **waiting time** later, with how it went on:
+  - The waiting time is **20% of the limit's length**: 12 minutes for a 1h limit,
+    1 minute for a 5-minute limit. It runs on the clock from the moment the limit was
+    reached, whatever the sender does in it.
+  - When it is over, every buddy is sent one encrypted **limit-hit** message that says
+    what was reached, all that was used by then, and whether the sender is still going:
+    - one of the limit's apps is open at that moment:
+      "Social Media: over the 1h limit and still going, 1h 12m so far"
+    - none of them is open, and more than the limit was used:
+      "Social Media: went over the 1h limit, 1h 3m in total"
+    - none of them is open, and the sender stopped at the limit:
+      "Social Media: reached the 1h limit and stopped"
+  - The buddies are always told, also if the sender stopped at once.
+  - "Open" means in the foreground with the screen on. A sender who left and came back
+    is still going.
+  - The report is sent at the end of the day at the latest. A limit reached shortly
+    before midnight is reported at midnight, before the day summary.
+  - If the phone could not send on time (switched off, for example), the report is sent
+    as soon as possible, with what is known then.
+  - A sender cannot dodge the report by changing the limit: if a reached limit is
+    weakened or deleted during the waiting time (3.5), the buddies are told at that
+    moment, before they are told about the change.
+- Each limit triggers at most once per day. Further use after the report is not
+  reported instantly, but the final total appears in the day summary.
 - The exception is a limit that is weakened after it was hit (its duration raised or an
   app removed, see 3.5). The hit then no longer stands:
   - "Limit reached" disappears from the sender's screen and the sender's local
     notification is removed, unless today's usage already reaches the weakened limit.
-  - The limit can be hit again that day, as soon as today's usage reaches it. Sender and
-    buddies are then notified again.
+  - The limit can be hit again that day, as soon as today's usage reaches it. The sender
+    is then notified again, and the buddies again after a waiting time.
   - Buddies keep what they were told. They learned of the hit and of the weakening.
   - The day summary lists the limit once: with the duration of its latest hit.
 - Tightening a limit after a hit changes nothing: the hit stands.
@@ -131,7 +154,9 @@ endless scrolling. It is a one-off time budget on top of the daily limits.
 
 - When a session has counted as much time as its length, this **counts as a limit
   reached**: the sender gets a local notification ("Session: 15m limit reached") and
-  every buddy is told, exactly as for a limit (3.3).
+  every buddy is told as for a limit (3.3): a waiting time of 20% of the session's
+  length later, with whether the sender is still going. A session stopped during the
+  waiting time is reported with what it had counted.
 - The session then **keeps running and counting**, so that the overrun is visible
   ("25m of 15m"), until it is stopped or the day ends. It is reported only once.
 
@@ -146,7 +171,8 @@ endless scrolling. It is a one-off time budget on top of the daily limits.
 
 **What buddies learn**
 
-- Only that a session was used up, as a reached limit named "Session".
+- Only that a session was used up, as a reached limit named "Session", with how it went
+  on (3.3).
 - A session that was used up appears in the **day summary** with its length and all it
   counted ("Session: 40m of 15m"), also if the sender deleted it from the list.
 - Starting, stopping and deleting a session is private. None of it is a weakening (3.5).
@@ -166,7 +192,7 @@ A limit, and likewise a session, passes through four levels as its time is used:
 | Normal | 0% | the theme's colour | nobody |
 | **Warning** | 80% | orange | the sender |
 | **Last warning** | 95% | dark orange | the sender |
-| Limit reached | 100% | the theme's error colour | the sender and the buddies (3.3) |
+| Limit reached | 100% | the theme's error colour | the sender at once, the buddies a waiting time later (3.3) |
 
 - The two warnings are **for the sender alone**. Buddies are not told, and a warning is
   neither a hit nor a weakening. Nothing about warnings appears in the day summary.
@@ -195,7 +221,7 @@ For each sender, the buddy can switch two things on or off:
 
 | Setting | Default | Shown when |
 |---|---|---|
-| Instant notifications | on | A limit is hit or the setup is weakened. |
+| Instant notifications | on | The sender's report about a reached limit arrives (a waiting time after the limit was reached, see 3.3), or the setup is weakened. |
 | Day summary | off | The sender's day closes at midnight and at least one limit was hit. |
 
 The day summary is shown as a silent notification when the day-close message arrives,
@@ -603,3 +629,4 @@ None at the moment.
 | Starting a session from the notification | Three preset buttons: 5, 15 and 30 minutes. |
 | What a buddy learns about sessions | Only that one was used up, and its overrun in the day summary. |
 | Warnings | At 80% (orange, silent) and 95% (dark orange, with sound), for limits and sessions. For the sender only; buddies are not told. |
+| When buddies hear of a reached limit | A waiting time of 20% of the limit's length later, with "still going" or the total. Always, also if the sender stopped at once. Same for sessions. |

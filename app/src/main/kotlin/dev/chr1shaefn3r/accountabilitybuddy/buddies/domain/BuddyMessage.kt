@@ -42,15 +42,24 @@ sealed interface BuddyMessage {
         @SerialName("n") val name: String,
     ) : BuddyMessage
 
+    /**
+     * A limit was reached, or a session used up. Sent a waiting time after it happened,
+     * with how it went on. Messages of older versions carry neither of the last two.
+     */
     @Serializable
     @SerialName("hit")
     data class LimitHit(
         @SerialName("n") val limitName: String,
         @SerialName("b") val budgetMinutes: Long,
         @SerialName("t") val atEpochSecond: Long,
+        @SerialName("u") val usedMinutes: Long? = null,
+        @SerialName("g") val stillGoing: Boolean? = null,
     ) : BuddyMessage {
         val budget: Duration get() = Duration.ofMinutes(budgetMinutes)
         val at: Instant get() = Instant.ofEpochSecond(atEpochSecond)
+
+        /** All that was used when the message was sent, if the message says so. */
+        val used: Duration? get() = usedMinutes?.let(Duration::ofMinutes)
     }
 
     /** The sender made the setup less strict. */

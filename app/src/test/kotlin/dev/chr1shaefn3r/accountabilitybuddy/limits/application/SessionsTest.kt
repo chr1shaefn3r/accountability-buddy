@@ -20,7 +20,17 @@ class SessionsTest {
     private val usage = FakeUsageSource()
     private val events = RecordingEvents()
     private val service =
-        LimitsService(limits, InMemoryHitLog(), sessions, usage, FakeHealth(), InMemoryLimitsMemory(), events, clock)
+        LimitsService(
+            limits,
+            InMemoryHitLog(),
+            sessions,
+            usage,
+            FakeHealth(),
+            InMemoryLimitsMemory(),
+            events,
+            RecordingWakeUp(),
+            clock,
+        )
 
     private val instagram = AppId("instagram")
     private val tiktok = AppId("tiktok")

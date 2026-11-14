@@ -6,6 +6,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppCatalog
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Day
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.HitReport
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.InstalledApp
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
@@ -60,7 +61,7 @@ class BuddyReporterTest {
     private val hour = Duration.ofHours(1)
 
     @Test
-    fun `a limit hit is shown to the sender and told to the buddies`() =
+    fun `a limit hit is shown to the sender at once, and not yet told to the buddies`() =
         runTest {
             val at = Instant.parse("2026-11-12T09:00:00Z")
             val hit = LimitHit(day, LimitId("1"), "Instagram", hour, setOf(AppId("com.instagram")), at)
@@ -68,11 +69,29 @@ class BuddyReporterTest {
             reporter.limitHit(hit)
 
             assertEquals(listOf(hit), shownToSender)
-            assertEquals(listOf<BuddyMessage>(BuddyMessage.LimitHit("Instagram", 60, at.epochSecond)), told)
+            assertEquals(emptyList(), told)
         }
 
     @Test
-    fun `a used up session is shown to the sender and told to the buddies like a reached limit`() =
+    fun `when the waiting time is over the buddies are told how it went on`() =
+        runTest {
+            val reachedAt = Instant.parse("2026-11-12T09:00:00Z")
+
+            reporter.hitReported(HitReport("Instagram", hour, reachedAt, Duration.ofSeconds(4359), stillGoing = true))
+            reporter.hitReported(HitReport("Session", Duration.ofMinutes(15), reachedAt, Duration.ofMinutes(16), false))
+
+            assertEquals(
+                listOf<BuddyMessage>(
+                    BuddyMessage.LimitHit("Instagram", 60, reachedAt.epochSecond, usedMinutes = 72, stillGoing = true),
+                    BuddyMessage.LimitHit("Session", 15, reachedAt.epochSecond, usedMinutes = 16, stillGoing = false),
+                ),
+                told,
+            )
+            assertEquals(emptyList(), shownToSender)
+        }
+
+    @Test
+    fun `a used up session is shown to the sender at once, and not yet told to the buddies`() =
         runTest {
             val started = Instant.parse("2026-11-12T20:00:00Z")
             val session = Session(SessionId("1"), Duration.ofMinutes(15), started, usedUpAt = started.plusSeconds(1200))
@@ -80,10 +99,7 @@ class BuddyReporterTest {
             reporter.sessionUsedUp(session)
 
             assertEquals(listOf(session), usedUpShownToSender)
-            assertEquals(
-                listOf<BuddyMessage>(BuddyMessage.LimitHit("Session", 15, started.plusSeconds(1200).epochSecond)),
-                told,
-            )
+            assertEquals(emptyList(), told)
         }
 
     @Test

@@ -5,18 +5,21 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Day
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.ForegroundInterval
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.HitLog
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.HitReport
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Limit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsMemory
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.PendingReport
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingHealth
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.TrackingProblem
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageSource
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageWarning
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.WakeUp
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -96,6 +99,7 @@ class InMemoryLimitsMemory : LimitsMemory {
     override var lastClosedDay: Day? = null
     override var reportedProblems: Set<TrackingProblem> = emptySet()
     override var announcedWarnings: AnnouncedWarnings = AnnouncedWarnings.NONE
+    override var pendingReports: List<PendingReport> = emptyList()
 }
 
 class RecordingEvents : LimitsEvents {
@@ -106,17 +110,28 @@ class RecordingEvents : LimitsEvents {
     val usedUpSessions = mutableListOf<Session>()
     val warnings = mutableListOf<UsageWarning>()
     val liftedWarnings = mutableListOf<String>()
+    val reports = mutableListOf<HitReport>()
+
+    /** Everything that concerns the buddies, in the order it happened. */
+    val toldToBuddies = mutableListOf<String>()
 
     override suspend fun limitHit(hit: LimitHit) {
         hits += hit
     }
 
+    override suspend fun hitReported(report: HitReport) {
+        reports += report
+        toldToBuddies += "report ${report.name}"
+    }
+
     override suspend fun setupWeakened(weakening: Weakening) {
         weakenings += weakening
+        toldToBuddies += "weakening ${weakening::class.simpleName}"
     }
 
     override suspend fun dayClosed(dayClosed: DayClosed) {
         closedDays += dayClosed
+        toldToBuddies += "day ${dayClosed.day.date}"
     }
 
     override suspend fun hitLifted(limitId: LimitId) {
@@ -133,5 +148,13 @@ class RecordingEvents : LimitsEvents {
 
     override suspend fun warningLifted(subjectId: String) {
         liftedWarnings += subjectId
+    }
+}
+
+class RecordingWakeUp : WakeUp {
+    val askedFor = mutableListOf<Instant>()
+
+    override fun at(instant: Instant) {
+        askedFor += instant
     }
 }

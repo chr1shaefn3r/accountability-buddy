@@ -41,7 +41,7 @@ fun LocalDate.asTextRelativeTo(today: LocalDate): String =
 /** One line that says what a message from a sender reports. */
 fun BuddyMessage.asText(): String =
     when (this) {
-        is BuddyMessage.LimitHit -> limitReachedText(limitName, budget)
+        is BuddyMessage.LimitHit -> reportText(this)
         is BuddyMessage.BudgetRaised -> "$limitName: limit raised from ${from.asText()} to ${to.asText()}"
         is BuddyMessage.AppsRemoved -> "$limitName: ${apps.joinToString()} removed from the limit"
         is BuddyMessage.LimitDeleted -> "$limitName: ${budget.asText()} limit deleted"

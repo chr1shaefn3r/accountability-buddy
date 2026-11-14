@@ -1,5 +1,6 @@
 package dev.chr1shaefn3r.accountabilitybuddy
 
+import android.app.AlarmManager
 import android.app.AppOpsManager
 import android.app.NotificationManager
 import android.app.usage.UsageEvents
@@ -455,6 +456,33 @@ class AppUiTest {
         waitFor("the limit to be deleted") { runBlocking { app.limitRepository.all().isEmpty() } }
         waitFor("Sam to be told") { sam.history.messages.contains(BuddyMessage.LimitDeleted("Video", 60)) }
         assertEquals(listOf("setupWeakened Alex LimitDeleted"), sam.notifier.shown.takeLast(1))
+    }
+
+    @Test
+    fun `a buddy hears of a reached limit only after the waiting time, with how it went on`() {
+        onboard()
+        grantUsageAccess()
+        samBecomesBuddy()
+        val noon = app.clock.instant()
+        videoWasUsedFor(Duration.ofMinutes(10))
+
+        inApp { app.limits.save(videoLimit.copy(budget = Duration.ofMinutes(10))) }
+
+        assertTrue("Video: 10m limit reached" in shownNotifications(), "the sender is told at once")
+        assertEquals(emptyList(), sam.history.messages)
+        val alarms = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms
+        assertTrue(
+            alarms.any { it.triggerAtMs == noon.plusSeconds(121).toEpochMilli() },
+            "woken when the report is due",
+        )
+
+        // A fifth of ten minutes later the app looks again.
+        app.clockOffset = Duration.ofMinutes(2)
+        inApp { app.limits.check() }
+
+        val report = BuddyMessage.LimitHit("Video", 10, noon.epochSecond, usedMinutes = 10, stillGoing = false)
+        waitFor("Sam to be told") { sam.history.messages.contains(report) }
+        assertEquals("limitHit Alex Video", sam.notifier.shown.last())
     }
 
     @Test

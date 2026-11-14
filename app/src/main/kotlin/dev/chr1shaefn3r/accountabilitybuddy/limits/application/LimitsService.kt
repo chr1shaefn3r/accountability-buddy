@@ -1,6 +1,7 @@
 package dev.chr1shaefn3r.accountabilitybuddy.limits.application
 
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AnnouncedWarnings
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Day
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.ForegroundInterval
@@ -11,6 +12,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitRepository
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsMemory
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.PendingReport
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Session
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.SessionRepository
@@ -19,6 +21,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Usage
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageLevel
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageSource
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.UsageWarning
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.WakeUp
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.Weakening
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.newHits
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,6 +88,7 @@ class LimitsService(
     private val health: TrackingHealth,
     private val memory: LimitsMemory,
     private val events: LimitsEvents,
+    private val wakeUp: WakeUp,
     private val clock: Clock,
 ) {
     private val mutex = Mutex()
@@ -111,8 +115,11 @@ class LimitsService(
         mutex.withLock {
             closePastDays()
             val previous = limits.find(limit.id)
+            val weakenings = previous?.weakenedBy(limit).orEmpty()
+            // Buddies first learn how far a reached limit was overrun, then that it was weakened.
+            if (weakenings.isNotEmpty()) reportNow(limit.id.value)
             limits.save(limit)
-            previous?.weakenedBy(limit)?.forEach { events.setupWeakened(it) }
+            weakenings.forEach { events.setupWeakened(it) }
             if (previous != null && standingHit(previous) != null && standingHit(limit) == null) {
                 events.hitLifted(limit.id)
             }
@@ -124,6 +131,7 @@ class LimitsService(
         mutex.withLock {
             closePastDays()
             val limit = limits.find(id) ?: return@withLock
+            reportNow(id.value)
             limits.delete(id)
             events.setupWeakened(limit.deleted())
             if (standingHit(limit) != null) events.hitLifted(id)
@@ -237,7 +245,9 @@ class LimitsService(
         }
         var day = maxOf(lastClosed.next(), today.minusDays(MAX_DAYS_TO_CATCH_UP))
         while (day <= yesterday) {
-            detectHits(day, day.end(clock.zone))
+            val dayEnd = day.end(clock.zone)
+            detectHits(day, dayEnd)
+            sendReports(day) { it.isDueAt(dayEnd) }
             val closed = DayClosed.of(day, hitLog.hitsOn(day), usageOn(day) ?: Usage.NONE)
             events.dayClosed(closed.copy(entries = closed.entries + endSessionsOf(day)))
             memory.lastClosedDay = day
@@ -245,6 +255,8 @@ class LimitsService(
         }
         hitLog.forgetBefore(today.minusDays(MAX_DAYS_TO_CATCH_UP))
         sessions.forgetStartedBefore(today.start(clock.zone))
+        // Reports of days too long ago to be closed are given up.
+        memory.pendingReports = memory.pendingReports.filterNot { it.isDueAt(today.start(clock.zone)) }
     }
 
     /** Stops the sessions still running at the end of [day] and accounts for those that were used up. */
@@ -266,8 +278,68 @@ class LimitsService(
     }
 
     private suspend fun checkToday() {
-        detectHits(currentDay(), clock.instant())
+        val now = clock.instant()
+        detectHits(currentDay(), now)
         announceWarnings()
+        sendReports(currentDay()) { it.isDueAt(now) }
+    }
+
+    /** Remembers that the buddies are to be told about a limit or session reached at [reachedAt] on [day]. */
+    private fun expectReport(
+        subjectId: String,
+        name: String,
+        budget: Duration,
+        reachedAt: Instant,
+        day: Day,
+    ) {
+        val pending = PendingReport.after(subjectId, name, budget, reachedAt, latest = day.end(clock.zone))
+        memory.pendingReports = memory.pendingReports.filterNot { it.subjectId == subjectId } + pending
+        wakeUpForNextReport()
+    }
+
+    private fun wakeUpForNextReport() {
+        memory.pendingReports.minOfOrNull { it.dueAt }?.let(wakeUp::at)
+    }
+
+    /** Tells the buddies now about the limit or session with this id, if they are still to be told. */
+    private suspend fun reportNow(subjectId: String) = sendReports(currentDay()) { it.subjectId == subjectId }
+
+    /**
+     * Tells the buddies about the reached limits and used-up sessions chosen by [which],
+     * with what is known about [day] at this moment: all that was used, and whether one
+     * of the apps concerned is open right now.
+     */
+    private suspend fun sendReports(
+        day: Day,
+        which: (PendingReport) -> Boolean,
+    ) {
+        val (toSend, toKeep) = memory.pendingReports.partition(which)
+        if (toSend.isEmpty()) return
+        val until = minOf(clock.instant(), day.end(clock.zone))
+        val intervals = intervalsOn(day).orEmpty()
+        val usage = Usage.on(day, clock.zone, intervals)
+        val allLimits = limits.all()
+        val limitedApps = allLimits.flatMap { it.apps }.toSet()
+        val allSessions = sessions.all()
+
+        fun isOpen(apps: Set<AppId>) = intervals.any { it.app in apps && it.end >= until }
+        for (pending in toSend) {
+            val limit = allLimits.firstOrNull { it.id.value == pending.subjectId }
+            val session = allSessions.firstOrNull { it.id.value == pending.subjectId }
+            val report =
+                when {
+                    limit != null -> pending.report(usage.of(limit), isOpen(limit.apps))
+                    session != null ->
+                        pending.report(
+                            session.used(intervals, limitedApps, until),
+                            stillGoing = session.isRunning && isOpen(limitedApps),
+                        )
+                    else -> pending.report(pending.budget, stillGoing = false)
+                }
+            events.hitReported(report)
+        }
+        memory.pendingReports = toKeep
+        wakeUpForNextReport()
     }
 
     /**
@@ -317,6 +389,7 @@ class LimitsService(
         all.newHits(day, Usage.on(day, clock.zone, intervals), hitLog.hitsOn(day), at).forEach {
             hitLog.record(it)
             events.limitHit(it)
+            expectReport(it.limitId.value, it.limitName, it.budget, at, day)
         }
         val limitedApps = all.flatMap { it.apps }.toSet()
         sessions
@@ -327,6 +400,7 @@ class LimitsService(
                 val usedUp = it.usedUp(at)
                 sessions.save(usedUp)
                 events.sessionUsedUp(usedUp)
+                expectReport(usedUp.id.value, Session.NAME, usedUp.length, at, day)
             }
     }
 

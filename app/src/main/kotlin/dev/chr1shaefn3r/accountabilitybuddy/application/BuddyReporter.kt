@@ -5,6 +5,7 @@ import dev.chr1shaefn3r.accountabilitybuddy.buddies.domain.BuddyMessage.Tracking
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppCatalog
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.AppId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.DayClosed
+import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.HitReport
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitHit
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitId
 import dev.chr1shaefn3r.accountabilitybuddy.limits.domain.LimitsEvents
@@ -23,9 +24,20 @@ class BuddyReporter(
     private val apps: AppCatalog,
     private val tellBuddies: suspend (BuddyMessage) -> Unit,
 ) : LimitsEvents {
-    override suspend fun limitHit(hit: LimitHit) {
-        senderNotifier.limitReached(hit)
-        tellBuddies(BuddyMessage.LimitHit(hit.limitName, hit.budget.toMinutes(), hit.at.epochSecond))
+    /** The sender learns of a reached limit at once. The buddies are told later, with [hitReported]. */
+    override suspend fun limitHit(hit: LimitHit) = senderNotifier.limitReached(hit)
+
+    /** The waiting time is over: the buddies are told what was reached and how it went on. */
+    override suspend fun hitReported(report: HitReport) {
+        tellBuddies(
+            BuddyMessage.LimitHit(
+                limitName = report.name,
+                budgetMinutes = report.budget.toMinutes(),
+                atEpochSecond = report.reachedAt.epochSecond,
+                usedMinutes = report.used.toMinutes(),
+                stillGoing = report.stillGoing,
+            ),
+        )
     }
 
     /** Only the sender's own notification is taken back. Buddies keep what they were told: it happened. */
@@ -36,12 +48,8 @@ class BuddyReporter(
 
     override suspend fun warningLifted(subjectId: String) = senderNotifier.nothingToShowFor(subjectId)
 
-    /** A used up session counts like a reached limit, on the sender's phone and for the buddies. */
-    override suspend fun sessionUsedUp(session: Session) {
-        senderNotifier.sessionUsedUp(session)
-        val at = session.usedUpAt ?: session.startedAt
-        tellBuddies(BuddyMessage.LimitHit(Session.NAME, session.length.toMinutes(), at.epochSecond))
-    }
+    /** A used up session counts like a reached limit: the sender learns it at once, the buddies later. */
+    override suspend fun sessionUsedUp(session: Session) = senderNotifier.sessionUsedUp(session)
 
     override suspend fun setupWeakened(weakening: Weakening) {
         tellBuddies(

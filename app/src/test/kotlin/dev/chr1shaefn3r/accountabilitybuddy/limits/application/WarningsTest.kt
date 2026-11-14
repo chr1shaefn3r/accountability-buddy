@@ -25,6 +25,7 @@ class WarningsTest {
             FakeHealth(),
             InMemoryLimitsMemory(),
             events,
+            RecordingWakeUp(),
             clock,
         )
 

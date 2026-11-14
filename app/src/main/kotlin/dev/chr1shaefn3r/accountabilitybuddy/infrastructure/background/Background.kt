@@ -38,6 +38,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
@@ -251,9 +252,11 @@ class WakeUpReceiver : BroadcastReceiver() {
 
     companion object {
         private val AFTER_MIDNIGHT: Duration = Duration.ofSeconds(5)
+        private val AFTER_DUE: Duration = Duration.ofSeconds(1)
+        private const val MIDNIGHT = 0
+        private const val REPORT = 1
 
         /** Sets an exact alarm for just after the next midnight, to close the day on time. */
-        @SuppressLint("MissingPermission") // The manifest declares USE_EXACT_ALARM, which lint does not know.
         fun scheduleMidnight(
             context: Context,
             clock: Clock,
@@ -264,20 +267,35 @@ class WakeUpReceiver : BroadcastReceiver() {
                     .plusDays(1)
                     .atStartOfDay(clock.zone)
                     .toInstant()
+            wakeAt(context, MIDNIGHT, midnight + AFTER_MIDNIGHT)
+        }
+
+        /** Sets an exact alarm for the moment a report to the buddies is due. */
+        fun scheduleReport(
+            context: Context,
+            due: Instant,
+        ) = wakeAt(context, REPORT, due + AFTER_DUE)
+
+        /** Sets one exact alarm per [purpose]; setting it again moves it. */
+        @SuppressLint("MissingPermission") // The manifest declares USE_EXACT_ALARM, which lint does not know.
+        private fun wakeAt(
+            context: Context,
+            purpose: Int,
+            instant: Instant,
+        ) {
             val intent =
                 PendingIntent.getBroadcast(
                     context,
-                    0,
+                    purpose,
                     Intent(context, WakeUpReceiver::class.java),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
-            val at = (midnight + AFTER_MIDNIGHT).toEpochMilli()
             val alarms = context.getSystemService(AlarmManager::class.java)
             try {
-                alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, intent)
+                alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, instant.toEpochMilli(), intent)
             } catch (_: SecurityException) {
-                // Exact alarms were taken away: the day is then closed a little later.
-                alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, intent)
+                // Exact alarms were taken away: the app then acts a little later.
+                alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, instant.toEpochMilli(), intent)
             }
         }
     }

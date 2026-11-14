@@ -54,11 +54,21 @@ interface LimitsMemory {
     var lastClosedDay: Day?
     var reportedProblems: Set<TrackingProblem>
     var announcedWarnings: AnnouncedWarnings
+    var pendingReports: List<PendingReport>
+}
+
+/** Asks for the app to be woken, so that it can act at a moment when it is not open. */
+fun interface WakeUp {
+    fun at(instant: Instant)
 }
 
 /** Receives what happens in the Limits context. */
 interface LimitsEvents {
+    /** A limit was reached. The sender learns it now, the buddies with [hitReported]. */
     suspend fun limitHit(hit: LimitHit)
+
+    /** The waiting time after a reached limit or used-up session is over: time to tell the buddies. */
+    suspend fun hitReported(report: HitReport)
 
     suspend fun setupWeakened(weakening: Weakening)
 
@@ -67,7 +77,7 @@ interface LimitsEvents {
     /** A hit of today no longer stands: the limit was weakened beyond it or deleted. */
     suspend fun hitLifted(limitId: LimitId)
 
-    /** The time of a session is used up. This counts like a limit that was hit. */
+    /** The time of a session is used up. This counts like a limit that was hit, and is reported the same way. */
     suspend fun sessionUsedUp(session: Session)
 
     /** A limit or a session is close to its end. */

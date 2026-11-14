@@ -18,6 +18,8 @@ class BuddyMessageTest {
             BuddyMessage.AddressChanged("new-token"),
             BuddyMessage.NameChanged("Samantha"),
             BuddyMessage.LimitHit("Instagram", 60, 1_800_000_000),
+            BuddyMessage.LimitHit("Instagram", 60, 1_800_000_000, usedMinutes = 72, stillGoing = true),
+            BuddyMessage.LimitHit("Instagram", 60, 1_800_000_000, usedMinutes = 60, stillGoing = false),
             BuddyMessage.BudgetRaised("Instagram", 60, 120),
             BuddyMessage.AppsRemoved("Social Media", listOf("TikTok")),
             BuddyMessage.LimitDeleted("Instagram", 60),
@@ -31,6 +33,24 @@ class BuddyMessageTest {
         for (message in everyKind) {
             assertEquals(message, BuddyMessage.decode(BuddyMessage.encode(message)))
         }
+    }
+
+    @Test
+    fun `a limit hit from an older version, which does not say how it went on, is still understood`() {
+        val fromOlderVersion = """{"k":"hit","n":"Instagram","b":60,"t":1800000000}""".encodeToByteArray()
+
+        val hit = BuddyMessage.decode(fromOlderVersion) as BuddyMessage.LimitHit
+
+        assertEquals(BuddyMessage.LimitHit("Instagram", 60, 1_800_000_000), hit)
+        assertNull(hit.used)
+        assertNull(hit.stillGoing)
+    }
+
+    @Test
+    fun `a limit hit says what was used when it was sent`() {
+        val hit = BuddyMessage.LimitHit("Instagram", 60, 1_800_000_000, usedMinutes = 72, stillGoing = true)
+
+        assertEquals(Duration.ofMinutes(72), hit.used)
     }
 
     @Test

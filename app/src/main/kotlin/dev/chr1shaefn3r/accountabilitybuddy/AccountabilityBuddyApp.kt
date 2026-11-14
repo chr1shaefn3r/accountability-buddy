@@ -133,6 +133,7 @@ open class AccountabilityBuddyApp : Application() {
             health = phone,
             memory = preferences,
             events = BuddyReporter(notifications, phone, buddies::tellBuddies),
+            wakeUp = { due -> WakeUpReceiver.scheduleReport(this, due) },
             clock = clock,
         )
     }
