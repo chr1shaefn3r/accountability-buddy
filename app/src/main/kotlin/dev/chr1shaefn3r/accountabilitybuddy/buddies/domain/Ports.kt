@@ -127,6 +127,12 @@ interface BuddyNotifier {
     )
 
     fun silent(pairing: Pairing)
+
+    /** Shows on the sender's own phone what a buddy of [senderName] is notified about. */
+    fun asTestBuddy(
+        senderName: String,
+        message: BuddyMessage,
+    )
 }
 
 /** What this phone's owner goes by, and the address the phone last announced to partners. */

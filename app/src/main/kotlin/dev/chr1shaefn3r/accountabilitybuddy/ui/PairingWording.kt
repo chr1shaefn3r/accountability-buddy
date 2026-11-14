@@ -41,6 +41,9 @@ private fun activeSenderStatusText(
 
 /** The one line shown for a buddy in the sender's list of buddies. */
 fun buddyStatusText(pairing: Pairing): String =
+    if (pairing.isTestBuddy) "On this phone: shows what a buddy would be told" else realBuddyStatusText(pairing)
+
+private fun realBuddyStatusText(pairing: Pairing): String =
     when (pairing.state) {
         PairingState.AWAITING_CONFIRMATION -> "Wants to be your buddy"
         PairingState.REQUESTED -> "Waiting for confirmation"

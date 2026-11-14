@@ -127,6 +127,25 @@ private class PartnerNotifications(
                 .asText()
         board.show(Channel.SILENCE, pairing.displayName, "No sign of life since $since.")
     }
+
+    /** The same notifications a buddy gets, on the same channels, marked as the buddy's with a prefix. */
+    override fun asTestBuddy(
+        senderName: String,
+        message: BuddyMessage,
+    ) {
+        val title = "$TEST_BUDDY_PREFIX$senderName"
+        when (message) {
+            is BuddyMessage.LimitHit -> board.show(Channel.LIMIT_REACHED, title, message.asText())
+            is BuddyMessage.SetupWeakened -> board.show(Channel.CHANGES, title, message.asText())
+            is BuddyMessage.DayClosed ->
+                board.show(Channel.DAY_SUMMARY, "$title: ${message.day.asText()}", message.asText())
+            else -> Unit
+        }
+    }
+
+    private companion object {
+        const val TEST_BUDDY_PREFIX = "Buddy: "
+    }
 }
 
 /**

@@ -285,6 +285,27 @@ sender's screen and never sent to the server.
 Either side can end a pairing. The other side receives an encrypted notice and marks
 the pairing as ended. Keys for the pairing are deleted on both phones.
 
+### 5.5 Test buddy
+
+For trying the app out before a second phone is involved, a sender can add a **test
+buddy**: a buddy that lives on the sender's own phone.
+
+- It is added on "My buddies" with "Add test buddy", without a QR code, and removed
+  like any buddy. There is at most one.
+- It counts as a buddy everywhere: it is listed as "Test buddy", and the app warns
+  that "your buddies will be told" before a weakening.
+- Everything a real buddy would be notified about is shown on the sender's phone
+  instead, as a notification whose title starts with **"Buddy:"** followed by the
+  sender's display name, as a real buddy would see it. The text and the notification
+  channel are the same as on a buddy's phone.
+- The test buddy is shown what a buddy with all notifications switched on is shown: the
+  report about a reached limit or used-up session (after the waiting time, 3.3), every
+  weakening (3.5), and the day summary of a day with a hit. Like any buddy, it is shown
+  nothing on a day without a hit.
+- Nothing is sent for it. It needs no internet connection and no Firebase project, and
+  real buddies are told as usual alongside it.
+- It has no history page: the "Supporting" side of the app is not involved.
+
 ## 6. Privacy and security
 
 ### 6.1 End-to-end encryption
@@ -443,7 +464,8 @@ full-screen page with a back arrow. Navigation is never more than two levels dee
   Below: name, duration picker (hours and minutes), and the list of apps. "Add apps"
   opens the **app picker**: a searchable list with icons and checkboxes.
 - **My buddies**: list of buddies with their status, "Add buddy" (shows the QR code
-  with a countdown), remove buddy.
+  with a countdown), remove buddy. Below the list, "Add test buddy" with a sentence on
+  what it does (5.5), as long as there is none.
 - **Supporting**: one card per sender with the latest event ("Hit Social Media
   yesterday" or "All quiet for 5 days"). "Support someone" opens the scanner.
 - **Sender detail**: the two notification switches (4.1), the history as a list
@@ -630,3 +652,4 @@ None at the moment.
 | What a buddy learns about sessions | Only that one was used up, and its overrun in the day summary. |
 | Warnings | At 80% (orange, silent) and 95% (dark orange, with sound), for limits and sessions. For the sender only; buddies are not told. |
 | When buddies hear of a reached limit | A waiting time of 20% of the limit's length later, with "still going" or the total. Always, also if the sender stopped at once. Same for sessions. |
+| Trying the app with one phone | A test buddy on the sender's own phone shows what a buddy would be told, as notifications starting with "Buddy:". |

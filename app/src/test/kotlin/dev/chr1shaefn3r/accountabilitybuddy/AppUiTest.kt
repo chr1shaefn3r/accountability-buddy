@@ -163,6 +163,11 @@ class AppUiTest {
             .allNotifications
             .map { it.extras.getString("android.text") }
 
+    private fun shownNotificationsWithTitles(): List<Pair<String?, String?>> =
+        shadowOf(app.getSystemService(NotificationManager::class.java))
+            .allNotifications
+            .map { it.extras.getString("android.title") to it.extras.getString("android.text") }
+
     private fun noText(text: String) = compose.onAllNodesWithText(text).fetchSemanticsNodes().isEmpty()
 
     @Test
@@ -483,6 +488,48 @@ class AppUiTest {
         val report = BuddyMessage.LimitHit("Video", 10, noon.epochSecond, usedMinutes = 10, stillGoing = false)
         waitFor("Sam to be told") { sam.history.messages.contains(report) }
         assertEquals("limitHit Alex Video", sam.notifier.shown.last())
+    }
+
+    @Test
+    fun `a test buddy shows on this phone what a buddy would be told`() {
+        onboard()
+        grantUsageAccess()
+        videoWasUsedFor(Duration.ofMinutes(10))
+        launch()
+
+        click("No buddy yet — add one")
+        waitForText("A buddy never sees your list of limits")
+        click("Add test buddy")
+        waitForText("On this phone: shows what a buddy would be told")
+        assertTrue(noText("Add test buddy"), "there is one test buddy")
+
+        // A limit is reached; a fifth of its ten minutes later the test buddy is told.
+        inApp { app.limits.save(videoLimit.copy(budget = Duration.ofMinutes(10))) }
+        app.clockOffset = Duration.ofMinutes(2)
+        inApp { app.limits.check() }
+
+        val forTheBuddy = shownNotificationsWithTitles().filter { it.first.orEmpty().startsWith("Buddy: ") }
+        assertEquals(
+            listOf<Pair<String?, String?>>("Buddy: Alex" to "Video: reached the 10m limit and stopped"),
+            forTheBuddy,
+        )
+    }
+
+    @Test
+    fun `a test buddy can be removed again`() {
+        onboard()
+        inApp { app.buddies.addTestBuddy() }
+        launch()
+        waitForText("1 buddy")
+
+        click("1 buddy")
+        waitForText("Test buddy")
+        compose.onNodeWithContentDescription("Remove Test buddy").performClick()
+        waitForText("Nothing more is shown on this phone on a buddy's behalf.")
+        click("Remove")
+
+        waitForText("Add test buddy")
+        assertEquals(emptyList(), inApp { app.pairings.all() })
     }
 
     @Test

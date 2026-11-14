@@ -289,4 +289,11 @@ class RecordingNotifier : BuddyNotifier {
     override fun silent(pairing: Pairing) {
         shown += "silent ${pairing.displayName}"
     }
+
+    override fun asTestBuddy(
+        senderName: String,
+        message: BuddyMessage,
+    ) {
+        shown += "asTestBuddy $senderName ${message::class.simpleName}"
+    }
 }

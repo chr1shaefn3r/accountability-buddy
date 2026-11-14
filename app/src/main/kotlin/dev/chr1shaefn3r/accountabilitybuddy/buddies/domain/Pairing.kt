@@ -18,6 +18,9 @@ value class PairingId(
         const val SIZE = 16
         private const val HEX = 16
 
+        /** The id of the test buddy. A real pairing gets a random id, which is never this one. */
+        val TEST_BUDDY = PairingId("0".repeat(SIZE * 2))
+
         fun of(bytes: ByteArray): PairingId = PairingId(bytes.joinToString("") { "%02x".format(it) })
     }
 }
@@ -71,6 +74,12 @@ data class Pairing(
 
     val hasKeys: Boolean get() = state != PairingState.ENDED
 
+    /**
+     * True for the buddy that lives on the sender's own phone: what it is told is shown
+     * there instead of being sent anywhere. For trying the app out without a second phone.
+     */
+    val isTestBuddy: Boolean get() = id == PairingId.TEST_BUDDY
+
     fun signOfLife(at: Instant): Pairing = copy(lastSignOfLife = at, silenceAlerted = false)
 
     /** True once a sender has not been heard from for too long and no alert was raised yet. */
@@ -82,5 +91,6 @@ data class Pairing(
 
     companion object {
         val SILENCE_THRESHOLD: Duration = Duration.ofDays(7)
+        const val TEST_BUDDY_NAME = "Test buddy"
     }
 }

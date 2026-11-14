@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -27,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,6 +61,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Duration
 
+private const val TEST_BUDDY_EXPLAINED =
+    "To try the app without a second phone: a test buddy lives on this phone. What a buddy would be told " +
+        "is shown here as notifications that start with \"Buddy:\". Nothing leaves the phone."
+
 private const val WHAT_A_BUDDY_SEES =
     "A buddy is told when you reach a limit and when you loosen your setup, " +
         "and can get a summary at the end of a day on which you reached a limit.\n\n" +
@@ -88,35 +94,56 @@ fun MyBuddiesScreen(
             )
         },
     ) { padding ->
-        when {
-            buddies == null -> Unit
-            buddies.isEmpty() -> EmptyState(WHAT_A_BUDDY_SEES, "Add buddy", onInvite, Modifier.padding(padding))
-            else ->
-                LazyColumn(Modifier.padding(padding)) {
-                    items(buddies, key = { it.id.hex }) { buddy ->
-                        ListItem(
-                            headlineContent = { Text(buddy.displayName) },
-                            supportingContent = { Text(buddyStatusText(buddy)) },
-                            trailingContent = {
-                                if (buddy.state == PairingState.AWAITING_CONFIRMATION) {
-                                    Row {
-                                        TextButton(onClick = { scope.launch { app.buddies.decline(buddy.id) } }) {
-                                            Text("Decline")
-                                        }
-                                        Button(onClick = { scope.launch { app.buddies.confirm(buddy.id) } }) {
-                                            Text("Confirm")
-                                        }
-                                    }
-                                } else {
-                                    IconButton(onClick = { removing = buddy }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Remove ${buddy.displayName}")
-                                    }
-                                }
-                            },
-                            modifier = Modifier.clickable(onClickLabel = "Rename") { renaming = buddy },
-                        )
+        if (buddies != null) {
+            LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 88.dp)) {
+                if (buddies.isEmpty()) {
+                    item {
+                        Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(WHAT_A_BUDDY_SEES, style = MaterialTheme.typography.bodyLarge)
+                            Spacer(Modifier.height(16.dp))
+                            Button(onClick = onInvite) { Text("Add buddy") }
+                        }
                     }
                 }
+                items(buddies, key = { it.id.hex }) { buddy ->
+                    ListItem(
+                        headlineContent = { Text(buddy.displayName) },
+                        supportingContent = { Text(buddyStatusText(buddy)) },
+                        trailingContent = {
+                            if (buddy.state == PairingState.AWAITING_CONFIRMATION) {
+                                Row {
+                                    TextButton(onClick = { scope.launch { app.buddies.decline(buddy.id) } }) {
+                                        Text("Decline")
+                                    }
+                                    Button(onClick = { scope.launch { app.buddies.confirm(buddy.id) } }) {
+                                        Text("Confirm")
+                                    }
+                                }
+                            } else {
+                                IconButton(onClick = { removing = buddy }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove ${buddy.displayName}")
+                                }
+                            }
+                        },
+                        modifier = Modifier.clickable(onClickLabel = "Rename") { renaming = buddy },
+                    )
+                }
+                if (buddies.none { it.isTestBuddy }) {
+                    item {
+                        Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
+                            OutlinedButton(
+                                onClick = { scope.launch { app.buddies.addTestBuddy() } },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text("Add test buddy") }
+                            Text(
+                                TEST_BUDDY_EXPLAINED,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -141,6 +168,8 @@ fun MyBuddiesScreen(
             text =
                 if (buddy.state == PairingState.ENDED) {
                     "The ended pairing is cleared away."
+                } else if (buddy.isTestBuddy) {
+                    "Nothing more is shown on this phone on a buddy's behalf."
                 } else {
                     "${buddy.displayName} will be told and will no longer hear about your limits."
                 },

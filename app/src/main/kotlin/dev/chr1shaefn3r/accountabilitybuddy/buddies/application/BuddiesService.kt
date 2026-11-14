@@ -149,6 +149,26 @@ class BuddiesService(
             forget(id)
         }
 
+    /**
+     * Sender: adds the test buddy, a buddy on this same phone. Everything a buddy would be
+     * notified about is shown here instead of being sent. Needs no second phone and no network.
+     */
+    suspend fun addTestBuddy() =
+        mutex.withLock {
+            if (pairings.find(PairingId.TEST_BUDDY) != null) return@withLock
+            pairings.create(
+                Pairing(
+                    id = PairingId.TEST_BUDDY,
+                    partnerRole = PartnerRole.BUDDY,
+                    partnerName = Pairing.TEST_BUDDY_NAME,
+                    partnerAddress = PushAddress("this-phone"),
+                    state = PairingState.ACTIVE,
+                    lastSignOfLife = clock.instant(),
+                ),
+                SessionKeys(crypto.randomBytes(SessionKeys.KEY_SIZE), crypto.randomBytes(SessionKeys.KEY_SIZE)),
+            )
+        }
+
     /** Ends a pairing from this side. The partner is told, unless they ended it first. */
     suspend fun end(id: PairingId) =
         mutex.withLock {
@@ -378,11 +398,23 @@ class BuddiesService(
         publicKey: ByteArray? = null,
     ) {
         val pairing = pairings.find(id) ?: return
+        if (pairing.isTestBuddy) return showToTestBuddy(message)
         val keys = pairings.keysOf(id) ?: return
         val wire = channel.seal(id, keys, pairing.nextCounter, message, publicKey)
         pairings.update(pairing.copy(nextCounter = pairing.nextCounter + 1))
         outbox.add(Letter(id, pairing.partnerAddress, wire, clock.instant()))
         deliverySchedule.deliverSoon()
+    }
+
+    /** The test buddy is shown what a real buddy with all notifications switched on would be shown. */
+    private fun showToTestBuddy(message: BuddyMessage) {
+        val notifies =
+            when (message) {
+                is BuddyMessage.LimitHit, is BuddyMessage.SetupWeakened -> true
+                is BuddyMessage.DayClosed -> message.entries.isNotEmpty()
+                else -> false
+            }
+        if (notifies) notifier.asTestBuddy(profile.displayName, message)
     }
 
     private suspend fun forget(id: PairingId) {
