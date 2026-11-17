@@ -115,4 +115,17 @@ class WordingTest {
         assertEquals("Last warning", UsageLevel.LAST_WARNING.asText())
         assertEquals("Limit reached", UsageLevel.REACHED.asText())
     }
+
+    @Test
+    fun `a card says how much is left once a warning applies, so that a nearly full bar makes sense`() {
+        val quarter = Duration.ofMinutes(15)
+
+        assertEquals("10m of 15m", cardUsageText(Duration.ofMinutes(10), quarter, UsageLevel.NORMAL))
+        assertEquals("12m of 15m, 3m left", cardUsageText(Duration.ofMinutes(12), quarter, UsageLevel.WARNING))
+        assertEquals(
+            "14m of 15m, less than 1m left",
+            cardUsageText(Duration.ofSeconds(14 * 60 + 40), quarter, UsageLevel.LAST_WARNING),
+        )
+        assertEquals("20m of 15m", cardUsageText(Duration.ofMinutes(20), quarter, UsageLevel.REACHED))
+    }
 }

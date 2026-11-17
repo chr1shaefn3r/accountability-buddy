@@ -309,7 +309,7 @@ private fun LimitCard(
             BudgetBar(status?.used ?: Duration.ZERO, limit.budget, level)
             Spacer(Modifier.height(8.dp))
             Text(
-                status?.let { usageText(it.used, limit.budget) } ?: "Measuring today's usage…",
+                status?.let { cardUsageText(it.used, limit.budget, level) } ?: "Measuring today's usage…",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -337,7 +337,7 @@ private fun SessionCard(
             BudgetBar(status.used, session.length, status.level, Modifier.padding(end = 8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    usageText(status.used, session.length),
+                    cardUsageText(status.used, session.length, status.level),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )

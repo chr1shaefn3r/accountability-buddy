@@ -28,10 +28,22 @@ fun UsageLevel.asText(): String =
     }
 
 /** What a warning says: how much is used and how much is left. */
-fun warningText(warning: UsageWarning): String {
-    val left = if (warning.left < Duration.ofMinutes(1)) "less than 1m" else warning.left.asText()
-    return "${warning.name}: ${usageText(warning.used, warning.budget)}, $left left"
-}
+fun warningText(warning: UsageWarning): String =
+    "${warning.name}: ${usageText(warning.used, warning.budget)}, ${leftText(warning.budget - warning.used)}"
+
+/**
+ * The line under the bar of a limit or session. Times are written in whole minutes, so
+ * once a warning applies it also says what is left: "14m of 15m" alone would not explain
+ * a bar that is nearly full.
+ */
+fun cardUsageText(
+    used: Duration,
+    budget: Duration,
+    level: UsageLevel,
+): String = if (level.isWarning) "${usageText(used, budget)}, ${leftText(budget - used)}" else usageText(used, budget)
+
+private fun leftText(left: Duration): String =
+    if (left < Duration.ofMinutes(1)) "less than 1m left" else "${left.asText()} left"
 
 /** What a session is called in the list: "Session" while it runs, "Session (ended)" afterwards. */
 fun sessionTitle(session: Session): String = if (session.isRunning) Session.NAME else "${Session.NAME} (ended)"

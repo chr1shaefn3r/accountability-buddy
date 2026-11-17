@@ -453,6 +453,10 @@ full-screen page with a back arrow. Navigation is never more than two levels dee
     and at 95%, where the warning and the last warning begin. From the warning on, the
     level is also written on the card ("Warning", "Last warning", "Limit reached"), so
     that it is never told by colour alone. Session cards show the same.
+    Times are written in whole minutes, so from the warning on the line under the bar
+    also says what is left ("14m of 15m, less than 1m left"). The bar keeps the unused
+    part of the track visible however little is left; it looks full only when the
+    limit is reached.
   - Above the limits, the sessions of the day (3.6): a "Start session" button while
     none is running, which asks for the minutes and offers the usual lengths as chips;
     the running session as a card with a progress bar, "7m of 15m" and "Stop session";

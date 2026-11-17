@@ -234,6 +234,9 @@ fun BudgetBar(
             progress = { fraction },
             modifier = Modifier.fillMaxWidth(),
             color = levelColor(level),
+            // Without a gap the rest of the track stays visible however little is left;
+            // the default gap and the rounded ends would hide the last few percent.
+            gapSize = 0.dp,
             drawStopIndicator = {},
         )
         Canvas(Modifier.fillMaxSize()) {
